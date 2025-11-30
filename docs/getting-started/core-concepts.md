@@ -33,14 +33,15 @@ The simplest way to create an actor:
 ```java
 public class PrinterHandler implements Handler<String> {
     @Override
-    public void handle(String message, ActorContext context) {
+    public void receive(String message, ActorContext context) {
         System.out.println("Received: " + message);
     }
 }
 
 // Spawn the actor
-ActorSystem system = ActorSystem.create();
-Pid printer = system.spawn(new PrinterHandler());
+ActorSystem system = new ActorSystem();
+Pid printer = system.actorOf(PrinterHandler.class)
+    .spawn();
 
 // Send messages
 printer.tell("Hello");
@@ -54,20 +55,16 @@ For actors that maintain state:
 ```java
 public class CounterHandler implements StatefulHandler<Integer, String> {
     @Override
-    public Integer initialState() {
-        return 0;
-    }
-
-    @Override
-    public Integer handle(Integer state, String message, ActorContext context) {
+    public Integer receive(String message, Integer state, ActorContext context) {
         int newState = state + 1;
         System.out.println("Message #" + newState + ": " + message);
         return newState;
     }
 }
 
-// Spawn stateful actor
-Pid counter = system.spawn(new CounterHandler());
+// Spawn stateful actor with initial state
+Pid counter = system.statefulActorOf(CounterHandler.class, 0)
+    .spawn();
 counter.tell("first");   // Message #1: first
 counter.tell("second");  // Message #2: second
 ```
@@ -135,7 +132,7 @@ public class RouterHandler implements Handler<Message> {
     private final Pid worker;
 
     @Override
-    public void handle(Message msg, ActorContext context) {
+    public void receive(Message msg, ActorContext context) {
         // Forward preserves original sender for replies
         context.forward(worker, msg);
     }
@@ -147,22 +144,24 @@ public class RouterHandler implements Handler<Message> {
 ### Creating an ActorSystem
 
 ```java
-ActorSystem system = ActorSystem.create();
+ActorSystem system = new ActorSystem();
 ```
 
 ### Spawning Actors
 
 ```java
 // Simple spawn
-Pid actor = system.spawn(new MyHandler());
+Pid actor = system.actorOf(MyHandler.class)
+    .spawn();
 
 // Spawn with explicit ID
-Pid actor = system.spawn(new MyHandler(), "my-actor-id");
+Pid actor = system.actorOf(MyHandler.class)
+    .withId("my-actor-id")
+    .spawn();
 
 // Spawn with configuration
-Pid actor = system.spawnBuilder(new MyHandler())
+Pid actor = system.actorOf(MyHandler.class)
     .withId("configured-actor")
-    .withSupervisionStrategy(SupervisionStrategy.RESTART)
     .spawn();
 ```
 
@@ -170,7 +169,7 @@ Pid actor = system.spawnBuilder(new MyHandler())
 
 ```java
 // Stop a specific actor
-system.stop(actor);
+system.stopActor(actor);
 
 // Shutdown entire system
 system.shutdown();
@@ -195,9 +194,9 @@ public class SupervisorHandler implements Handler<Message> {
     }
 
     @Override
-    public void handle(Message msg, ActorContext context) {
+    public void receive(Message msg, ActorContext context) {
         // Create child actors that will be supervised
-        Pid child = context.spawn(new ChildHandler());
+        Pid child = context.createChild(new ChildHandler());
     }
 }
 ```
@@ -214,7 +213,7 @@ Cajun is built on **Java 21+ Virtual Threads**, providing:
 // You can write simple blocking code
 public class DatabaseHandler implements Handler<Query> {
     @Override
-    public void handle(Query query, ActorContext context) {
+    public void receive(Query query, ActorContext context) {
         // This blocks but doesn't block the OS thread!
         Result result = database.executeQuery(query.sql());
         context.reply(result);

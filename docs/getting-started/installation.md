@@ -134,14 +134,14 @@ import com.cajunsystems.actor.*;
 public class HelloCajun {
     public static void main(String[] args) {
         // Create actor system
-        ActorSystem system = ActorSystem.create();
+        ActorSystem system = new ActorSystem();
 
         // Create a simple handler
         Handler<String> handler = (msg, ctx) ->
             System.out.println("Received: " + msg);
 
         // Spawn actor
-        Pid actor = system.spawn(handler);
+        Pid actor = system.actorOf(handler).spawn();
 
         // Send message
         actor.tell("Hello, Cajun!");

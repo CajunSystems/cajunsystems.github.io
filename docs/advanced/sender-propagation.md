@@ -127,7 +127,7 @@ The `forward()` method is also available in the handler-based API through `Actor
 ```java
 public class MyHandler implements Handler<Message> {
     @Override
-    public void handle(Message msg, ActorContext context) {
+    public void receive(Message msg, ActorContext context) {
         if (msg instanceof ForwardableRequest req) {
             Pid nextActor = selectNextActor(req);
             
