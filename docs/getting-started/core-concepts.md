@@ -196,7 +196,7 @@ public class SupervisorHandler implements Handler<Message> {
     @Override
     public void receive(Message msg, ActorContext context) {
         // Create child actors that will be supervised
-        Pid child = context.createChild(new ChildHandler());
+        Pid child = context.createChild(ChildHandler.class, "child-1");
     }
 }
 ```
