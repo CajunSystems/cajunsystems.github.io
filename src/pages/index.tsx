@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import CodeBlock from '@theme/CodeBlock';
 
 import styles from './index.module.css';
 
@@ -104,8 +105,7 @@ function QuickExample() {
               Quick Example
             </Heading>
             <div className="margin-top--lg">
-              <pre>
-                <code className="language-java">
+              <CodeBlock language="java">
 {`// Simple stateless actor
 public class GreeterHandler implements Handler<String> {
     @Override
@@ -124,8 +124,7 @@ greeter.tell("World");
 
 // Clean shutdown
 system.shutdown();`}
-                </code>
-              </pre>
+              </CodeBlock>
             </div>
           </div>
         </div>

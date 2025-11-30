@@ -129,19 +129,21 @@ dependencies {
 Create a simple test to verify your setup:
 
 ```java
-import com.cajunsystems.actor.*;
+import com.cajunsystems.*;
+import com.cajunsystems.handler.Handler;
 
 public class HelloCajun {
     public static void main(String[] args) {
         // Create actor system
         ActorSystem system = new ActorSystem();
 
-        // Create a simple handler
-        Handler<String> handler = (msg, ctx) ->
-            System.out.println("Received: " + msg);
-
-        // Spawn actor
-        Pid actor = system.actorOf(handler).spawn();
+        // Create a simple handler using anonymous class
+        Pid actor = system.actorOf(new Handler<String>() {
+            @Override
+            public void receive(String message, ActorContext context) {
+                System.out.println("Received: " + message);
+            }
+        }).spawn();
 
         // Send message
         actor.tell("Hello, Cajun!");
