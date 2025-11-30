@@ -3,274 +3,101 @@ sidebar_position: 2
 title: Mailbox Guide
 ---
 
-# Cajun Mailbox Selection Guide
+# Mailbox Guide
 
-## Quick Reference
+Cajun provides two mailbox implementations for actor message queues. Choose based on your workload and backpressure needs.
 
-| Mailbox Type | Best For | Throughput | Latency | Memory | Bounded |
-|--------------|----------|------------|---------|--------|---------|
-| **LinkedMailbox** | General-purpose, Mixed workloads | ⭐⭐⭐ Good | ⭐⭐⭐ Good | ⭐⭐⭐⭐ Low | ✅ Yes |
-| **MpscMailbox** | High-throughput CPU-bound | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐⭐⭐ Excellent | ⭐⭐⭐ Medium | ❌ No |
+## Quick Comparison
 
----
+| Mailbox | Best For | Performance | Bounded |
+|---------|----------|-------------|------|
+| **LinkedMailbox** | General-purpose, needs backpressure | Good | ✅ Yes |
+| **MpscMailbox** | High-throughput CPU-bound | Excellent (2-3x faster) | ❌ No |
 
-## LinkedMailbox
+## LinkedMailbox (Default)
 
-### When to Use
-- ✅ General-purpose actors
-- ✅ Mixed I/O and CPU workloads
-- ✅ Need backpressure (bounded capacity)
-- ✅ Memory-constrained environments
-- ✅ Actors with variable message rates
+General-purpose mailbox with bounded capacity for backpressure control.
 
-### Characteristics
-- Uses `java.util.concurrent.LinkedBlockingQueue`
-- Lock-free optimizations for common cases
-- Separate locks for producers and consumers
-- Low memory overhead (linked nodes)
-- Can be bounded or unbounded
+**When to use:**
+- General-purpose actors
+- Need backpressure control
+- Memory-constrained environments
 
-### Performance
-- **Throughput**: 100-200K messages/sec
-- **Latency (p50)**: 20-30μs
-- **Latency (p99)**: 80-150μs
-- **Memory**: ~32 bytes per message
+**Features:**
+- Bounded capacity (default 10,000)
+- Low memory overhead
 
-### Example
+**Usage:**
 ```java
-// Automatic selection (recommended)
-Pid actor = system.actorOf(MyHandler.class)
-    .withThreadPoolFactory(
-        new ThreadPoolFactory().optimizeFor(WorkloadType.MIXED)
-    )
-    .spawn();
+// Default - automatically uses LinkedMailbox
+Pid actor = system.actorOf(MyHandler.class).spawn();
 
-// Manual creation
-Mailbox<MyMessage> mailbox = new LinkedMailbox<>(10000);  // Bounded to 10K
+// Custom capacity
+Pid actor = system.actorOf(MyHandler.class)
+    .withMailboxCapacity(5000)
+    .spawn();
 ```
 
----
+## MpscMailbox (High-Performance)
 
-## MpscMailbox
+Lock-free mailbox for high-throughput CPU-bound workloads. **Unbounded** - requires monitoring.
 
-### When to Use
-- ✅ High-throughput CPU-bound workloads
-- ✅ Low-latency requirements
-- ✅ Many senders, single consumer
-- ✅ Can tolerate unbounded growth
-- ⚠️ Have monitoring for queue depth
+**When to use:**
+- High-throughput CPU-bound workloads
+- Low-latency requirements
+- Many senders, single consumer
+- Can tolerate unbounded growth
 
-### Avoid When
-- ❌ Need strict backpressure (unbounded!)
-- ❌ Memory is severely constrained
-- ❌ Message rates are highly variable
-- ❌ Single producer (no benefit over LinkedMailbox)
-
-### Characteristics
-- Uses JCTools `MpscUnboundedArrayQueue`
-- True lock-free multi-producer, single-consumer
-- Chunked array growth (starts small, grows as needed)
-- Minimal allocation overhead
+**Features:**
+- Lock-free multi-producer, single-consumer
+- 2-3x faster than LinkedMailbox
 - **Unbounded** - monitor queue depth!
 
-### Performance
-- **Throughput**: 400-600K messages/sec
-- **Latency (p50)**: 5-15μs
-- **Latency (p99)**: 30-60μs
-- **Memory**: ~8 bytes per slot + chunk overhead
-
-### Example
+**Usage:**
 ```java
-// Automatic selection (recommended for CPU-bound)
+// Use for CPU-bound workloads
 Pid actor = system.actorOf(MyHandler.class)
     .withThreadPoolFactory(
         new ThreadPoolFactory().optimizeFor(WorkloadType.CPU_BOUND)
     )
     .spawn();
-
-// Manual creation
-Mailbox<MyMessage> mailbox = new MpscMailbox<>(256);  // Initial chunk size
 ```
 
----
+## Choosing the Right Mailbox
 
-## Decision Tree
+**Use LinkedMailbox (default) for:**
+- Most use cases
+- Need backpressure control
+- Memory-constrained environments
 
-```
-Start
-  │
-  ├─ Need strict backpressure?
-  │    ├─ Yes → LinkedMailbox (bounded)
-  │    └─ No  → Continue
-  │
-  ├─ High-throughput CPU workload?
-  │    ├─ Yes → MpscMailbox
-  │    └─ No  → Continue
-  │
-  ├─ Memory constrained?
-  │    ├─ Yes → LinkedMailbox
-  │    └─ No  → Continue
-  │
-  ├─ Need lowest possible latency?
-  │    ├─ Yes → MpscMailbox
-  │    └─ No  → LinkedMailbox (default)
-```
+**Use MpscMailbox for:**
+- High-throughput CPU-bound workloads
+- Can tolerate unbounded growth
+- Have monitoring in place
 
----
+## Monitoring
 
-## Workload Type Defaults
-
-When using `ThreadPoolFactory.optimizeFor()`, Cajun automatically selects:
-
-| Workload Type | Default Mailbox | Capacity | Rationale |
-|---------------|-----------------|----------|-----------|
-| **IO_BOUND** | LinkedMailbox | 10,000 | Large buffer for bursty I/O |
-| **CPU_BOUND** | MpscMailbox | Unbounded | Highest throughput |
-| **MIXED** | LinkedMailbox | User-defined | Balanced |
-
----
-
-## Monitoring MpscMailbox
-
-Since MpscMailbox is unbounded, monitor queue depth:
+**Important:** MpscMailbox is unbounded - monitor queue depth:
 
 ```java
-Pid actor = system.actorOf(MyHandler.class).spawn();
-
-// Check queue size
-int queueSize = ((Actor<?>) system.getActor(actor)).getMailboxSize();
-if (queueSize > THRESHOLD) {
-    logger.warn("Mailbox queue depth high: {}", queueSize);
+int queueSize = ((Actor<?>) system.getActor(pid)).getMailboxSize();
+if (queueSize > 10_000) {
+    logger.warn("High mailbox depth: {}", queueSize);
 }
 ```
 
-**Recommended thresholds**:
-- ⚠️ Warning: > 10,000 messages
-- 🚨 Critical: > 100,000 messages
-- 💥 Emergency: > 1,000,000 messages (consider circuit breaker)
+## Configuration
 
----
-
-## Performance Comparison
-
-### Benchmark Setup
-- 100K messages sent to single actor
-- 1KB message payload
-- JMH benchmark, 10 iterations
-- OpenJDK 21, Virtual Threads
-
-### Results
-
-| Mailbox | Throughput | Latency (p50) | Latency (p99) | GC Overhead |
-|---------|------------|---------------|---------------|-------------|
-| ~~ResizableBlockingQueue~~ | 80K/sec | 50μs | 500μs | High |
-| **LinkedMailbox** | 180K/sec | 25μs | 100μs | Medium |
-| **MpscMailbox** | 450K/sec | 10μs | 50μs | Low |
-
-**Improvement over v0.1.x**:
-- LinkedMailbox: **2.25x throughput, 50% latency reduction**
-- MpscMailbox: **5.6x throughput, 80% latency reduction**
-
----
-
-## Migration from v0.1.x
-
-### Deprecated: ResizableBlockingQueue
-
+**Batch size** (messages processed per drain):
 ```java
-// OLD (v0.1.x) - Still works but deprecated
-ResizableBlockingQueue<Message> queue = new ResizableBlockingQueue<>(128, 10000);
-
-// NEW (v0.2.0) - Recommended
-LinkedMailbox<Message> mailbox = new LinkedMailbox<>(10000);  // General
-MpscMailbox<Message> mailbox = new MpscMailbox<>(128);       // High-perf
-```
-
-**Migration is automatic** - actors using default configuration will automatically use LinkedMailbox or MpscMailbox based on workload type.
-
----
-
-## Advanced: Custom Mailbox Implementation
-
-Want to implement a custom mailbox (e.g., priority queue, ring buffer)?
-
-```java
-public class MyCustomMailbox<T> implements Mailbox<T> {
-    @Override
-    public boolean offer(T message) {
-        // Your implementation
-    }
-
-    @Override
-    public T poll(long timeout, TimeUnit unit) throws InterruptedException {
-        // Your implementation
-    }
-
-    // ... implement all methods
-}
-
-// Usage
 Pid actor = system.actorOf(MyHandler.class)
-    .withMailbox(new MyCustomMailbox<>())  // Future API
+    .withBatchSize(100)  // Default: 10
     .spawn();
 ```
 
----
-
-## FAQ
-
-### Q: Can I change mailbox type for an existing actor?
-**A**: No, mailbox is created at actor spawn time. Stop the actor and recreate with desired mailbox.
-
-### Q: Should I always use MpscMailbox for best performance?
-**A**: No! MpscMailbox is unbounded. Only use if you can tolerate unbounded growth and have monitoring.
-
-### Q: What's the memory overhead of MpscMailbox?
-**A**: Initial chunk (e.g., 256 slots) = 256 * 8 bytes = 2KB. Grows in chunks as needed.
-
-### Q: Can I use bounded MPSC queue?
-**A**: JCTools provides `MpscArrayQueue` (bounded), but it's not yet integrated. Planned for future release.
-
-### Q: Does LinkedMailbox ever block?
-**A**: Yes, on `put()` when queue is full (if bounded). Use `offer()` for non-blocking behavior.
-
-### Q: How do I know which mailbox my actor is using?
-**A**: Check logs at INFO level - `DefaultMailboxProvider` logs mailbox type at creation.
-
----
-
-## Performance Tuning Tips
-
-### 1. Batch Size
+**Mailbox capacity** (LinkedMailbox only):
 ```java
 Pid actor = system.actorOf(MyHandler.class)
-    .withBatchSize(100)  // Process 100 messages per drain
+    .withMailboxCapacity(5000)  // Default: 10,000
     .spawn();
 ```
-- Default: 10
-- Higher batch size = better throughput, higher latency variance
-- Lower batch size = lower latency, more overhead
-
-### 2. Initial Capacity (MpscMailbox)
-```java
-new MpscMailbox<>(512);  // Larger initial chunk
-```
-- Powers of 2 only (128, 256, 512, 1024, ...)
-- Larger = fewer allocations, more upfront memory
-- Smaller = lower initial memory, more allocations
-
-### 3. Bounded Capacity (LinkedMailbox)
-```java
-new LinkedMailbox<>(1000);  // Strict backpressure
-```
-- Smaller = faster backpressure response
-- Larger = more buffering for bursty workloads
-
----
-
-## Resources
-
-- **Source Code**: `lib/src/main/java/com/cajunsystems/mailbox/`
-- **Benchmarks**: `benchmarks/src/jmh/java/com/cajunsystems/benchmarks/`
-- **JCTools Documentation**: https://github.com/JCTools/JCTools
-- **Performance Guide**: `PERFORMANCE_IMPROVEMENTS.md`

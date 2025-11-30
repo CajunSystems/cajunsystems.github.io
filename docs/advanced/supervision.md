@@ -1,416 +1,358 @@
 ---
 sidebar_position: 4
-title: Supervision System
+title: Supervision & Error Handling
 ---
 
-# Supervision System Audit Report
+# Supervision & Error Handling
 
-**Date:** November 27, 2025  
-**Status:** ✅ PRODUCTION READY  
-**Test Coverage:** 110 tests passing
+Cajun provides a robust supervision system for handling actor failures gracefully, inspired by Erlang OTP. When an actor encounters an error during message processing, the supervision system determines how to respond based on the configured strategy.
 
----
+## Supervision Strategies
 
-## Executive Summary
-
-The Cajun actor system's supervision mechanism has been thoroughly audited and refactored to ensure resilience, predictability, and zero message loss. All critical issues have been resolved, and the system is now production-ready.
-
----
-
-## Architecture Overview
-
-### Core Components
-
-1. **`SupervisionStrategy` enum** - Defines 4 strategies: RESUME, RESTART, STOP, ESCALATE
-2. **`Supervisor` class** - Centralized supervision logic for handling actor failures
-3. **`MailboxProcessor`** - Batch processing with restart signaling mechanism
-4. **`Actor` class** - Integration point with supervision system
-
-### Supervision Strategies
+The `SupervisionStrategy` enum defines four strategies for handling actor failures:
 
 | Strategy | Behavior | Use Case |
 |----------|----------|----------|
-| **RESUME** | Continue processing next message | Transient errors, logging only |
-| **RESTART** | Stop and restart actor, preserve mailbox | Recoverable errors, state reset |
-| **STOP** | Terminate actor permanently | Unrecoverable errors |
-| **ESCALATE** | Propagate error to parent | Hierarchical error handling |
+| **RESUME** | Continue processing next message, ignore the error | Transient errors, logging only |
+| **RESTART** | Restart the actor, reset state, preserve mailbox | Recoverable errors requiring state reset |
+| **STOP** | Terminate the actor permanently | Unrecoverable errors |
+| **ESCALATE** | Propagate error to parent actor | Hierarchical error handling |
 
----
+## Configuring Supervision
 
-## Critical Fixes Applied
+Set the supervision strategy when spawning an actor:
 
-### 1. ✅ Infinite Loop Prevention (CRITICAL)
-
-**Issue:** Failed messages were continuously reprocessed, causing infinite loops and memory exhaustion.
-
-**Root Cause:**
 ```java
-// BEFORE: processedCount not incremented for failed messages
-catch (Throwable e) {
-    exceptionHandler.accept(msg, e);
-    // processedCount NOT incremented - BUG!
-}
-// Failed message re-added to mailbox → infinite loop
+Pid actor = system.actorOf(MyHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESTART)
+    .withId("my-actor")
+    .spawn();
 ```
 
-**Fix:**
+## RESUME Strategy
+
+The actor continues processing the next message, ignoring the error. Best for transient errors where you want to log and continue.
+
 ```java
-// AFTER: processedCount incremented for ALL messages
-catch (Throwable e) {
-    exceptionHandler.accept(msg, e);
-    processedCount++; // ✅ Prevents re-adding failed message
-}
-```
-
-**Impact:** Eliminates infinite loops, prevents memory exhaustion, ensures bounded processing.
-
----
-
-### 2. ✅ Message Loss Prevention
-
-**Issue:** Messages in batch buffer after a failure were lost during restart.
-
-**Solution:** Return unprocessed messages to mailbox before restart
-```java
-if (restartRequested) {
-    // Return unprocessed messages back to mailbox
-    for (int i = processedCount; i < batchBuffer.size(); i++) {
-        mailbox.offer(batchBuffer.get(i));
+public class ResilientHandler implements Handler<String> {
+    @Override
+    public void receive(String message, ActorContext context) {
+        if (message.equals("error")) {
+            throw new RuntimeException("Transient error");
+        }
+        context.getLogger().info("Processed: {}", message);
     }
-    break;
 }
+
+// Configure with RESUME
+Pid actor = system.actorOf(ResilientHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESUME)
+    .spawn();
+
+actor.tell("hello");  // ✓ Processed
+actor.tell("error");  // ✗ Error logged, actor continues
+actor.tell("world");  // ✓ Processed
 ```
 
-**Guarantee:** Zero message loss during actor restarts.
+## RESTART Strategy
 
----
+The actor is restarted with fresh state. The mailbox is preserved, so no messages are lost.
 
-### 3. ✅ ConcurrentModificationException Fix
-
-**Issue:** Synchronous restart during batch processing caused `ConcurrentModificationException`.
-
-**Solution:** Deferred restart mechanism
 ```java
-// Signal restart request
-actor.requestRestart(() -> {
-    actor.stopForRestart();  // Preserve mailbox
-    actor.start();           // Restart actor
-    if (shouldReprocess) {
-        actor.tell(message); // Reprocess failed message
+public class StatefulHandler implements Handler<Command> {
+    private int counter = 0;
+
+    @Override
+    public void preStart(ActorContext context) {
+        context.getLogger().info("Actor starting, counter reset to 0");
     }
-});
 
-// Restart executes AFTER batch completes
-if (shouldRestart && pendingRestart != null) {
-    pendingRestart.run();
+    @Override
+    public void receive(Command message, ActorContext context) {
+        if (message instanceof Increment) {
+            counter++;
+        } else if (message instanceof FailCommand) {
+            throw new RuntimeException("Recoverable error");
+        }
+        context.getLogger().info("Counter: {}", counter);
+    }
+}
+
+// Configure with RESTART
+Pid actor = system.actorOf(StatefulHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESTART)
+    .spawn();
+
+actor.tell(new Increment());  // counter = 1
+actor.tell(new FailCommand()); // Actor restarts, counter resets to 0
+actor.tell(new Increment());  // counter = 1 (fresh state)
+```
+
+### Message Reprocessing
+
+Control whether the failed message should be reprocessed after restart by overriding `onError()`:
+
+```java
+public class ReprocessHandler implements Handler<Message> {
+    @Override
+    public void receive(Message message, ActorContext context) {
+        // Process message
+        if (shouldFail(message)) {
+            throw new RuntimeException("Temporary failure");
+        }
+    }
+
+    @Override
+    public boolean onError(Message message, Throwable exception, ActorContext context) {
+        context.getLogger().warn("Error processing {}: {}", message, exception.getMessage());
+        
+        // Return true to reprocess the message after restart
+        return message.isRetryable();
+    }
 }
 ```
 
-**Guarantee:** No concurrent modification, predictable restart timing.
+**Default behavior**: `onError()` returns `false` (no reprocessing)
 
----
+## STOP Strategy
 
-### 4. ✅ Double-Clearing Flag Bug
+The actor is terminated permanently. Use for unrecoverable errors.
 
-**Issue:** `restartRequested` flag cleared in both for-loop and while-loop, causing missed restart checks.
-
-**Solution:** Only clear flag in while-loop
 ```java
-// For loop: Just break, don't clear flag
-if (restartRequested) {
-    break;  // ✅ Let while loop handle cleanup
+Pid actor = system.actorOf(CriticalHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.STOP)
+    .spawn();
+
+actor.tell("process");  // ✓ Processed
+actor.tell("fatal");    // ✗ Actor stops permanently
+actor.tell("more");     // ✗ Not processed (actor is stopped)
+```
+
+## ESCALATE Strategy
+
+The error is propagated to the parent actor. The child actor stops, and the parent decides how to handle it.
+
+```java
+// Parent actor
+public class ParentHandler implements Handler<ParentMessage> {
+    @Override
+    public void receive(ParentMessage message, ActorContext context) {
+        if (message instanceof CreateChild) {
+            Pid child = context.createChild(ChildHandler.class, "child-1")
+                .withSupervisionStrategy(SupervisionStrategy.ESCALATE)
+                .spawn();
+        }
+    }
 }
 
-// While loop: Clear flag and execute restart
-if (restartRequested) {
-    shouldRestart = true;
-    restartRequested = false;  // ✅ Single point of clearing
-    running = false;
-    break;
+// Child actor with ESCALATE
+public class ChildHandler implements Handler<ChildMessage> {
+    @Override
+    public void receive(ChildMessage message, ActorContext context) {
+        if (message.isProblematic()) {
+            // This error will be escalated to the parent
+            throw new RuntimeException("Child cannot handle this");
+        }
+    }
 }
+
+// Parent handles child errors based on its own supervision strategy
+Pid parent = system.actorOf(ParentHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESTART)  // Parent restarts child
+    .spawn();
 ```
 
-**Guarantee:** Restart always detected and executed.
+## Lifecycle Hooks
 
----
+Override these methods to add custom behavior during supervision events:
 
-## Message Flow During Restart
+### preStart()
 
-### Scenario: Batch [msg1, msg2, msg3], msg2 fails
-
-```
-1. msg1 processed ✓ (processedCount=1)
-2. msg2 fails ✗ 
-   - exceptionHandler called
-   - restartRequested = true
-   - processedCount = 2 ✅ (prevents re-adding)
-3. For loop detects restartRequested
-   - msg3 returned to mailbox (unprocessed)
-   - Break from for loop
-4. While loop detects restartRequested
-   - Sets shouldRestart = true
-   - Exits mailbox loop
-5. Restart callback executes
-   - stopForRestart() preserves mailbox
-   - start() creates new thread
-   - Supervisor re-sends msg2 if shouldReprocess=true
-6. Restarted actor processes:
-   - msg2 (reprocessed by Supervisor)
-   - msg3 (from preserved mailbox)
-```
-
-**Result:** All messages processed, no loss, no duplicates (unless shouldReprocess=true).
-
----
-
-## Thread Safety Analysis
-
-### Volatile Fields
-```java
-private volatile boolean running = false;
-private volatile boolean restartRequested = false;
-private volatile Thread thread;
-```
-
-✅ **Correct:** Ensures visibility across threads for control flags.
-
-### Synchronization Points
-
-1. **Mailbox operations** - Thread-safe via `BlockingQueue`
-2. **Restart signaling** - Volatile flag with single writer (exception handler)
-3. **Thread lifecycle** - Clean handoff via `running` flag and `thread.join()`
-
-✅ **No race conditions detected.**
-
----
-
-## Memory Safety Analysis
-
-### Potential Leaks Checked
-
-1. ✅ **Batch buffer** - Cleared at start of each batch
-2. ✅ **Restart callback** - Cleared after execution
-3. ✅ **Thread references** - Set to null after stop
-4. ✅ **Mailbox** - Bounded capacity with backpressure
-
-### Memory Bounds
-
-- **Batch buffer:** Fixed size (configurable, default 10)
-- **Mailbox:** Bounded capacity (default 10,000)
-- **No unbounded collections**
-
-✅ **No memory leaks detected.**
-
----
-
-## Test Coverage
-
-### Current Tests (HierarchicalSupervisionTest)
-
-1. ✅ **testParentChildRelationship** - Verifies hierarchy setup
-2. ✅ **testHierarchicalShutdown** - Cascading shutdown
-3. ✅ **testChildBuilderAppliesSupervisionStrategy** - RESTART strategy with message preservation
-4. ✅ **testErrorEscalation** - ESCALATE strategy propagation
-
-### Test Quality Assessment
-
-**Strengths:**
-- Tests use realistic scenarios
-- Proper use of latches and timeouts
-- Verifies both state and behavior
-
-**Gaps Identified:**
-
-1. ❌ **Missing RESUME strategy test** - No test verifying actor continues after error
-2. ❌ **Missing STOP strategy test** - No test verifying actor stops on error
-3. ❌ **Missing multiple restart test** - No test for consecutive failures
-4. ❌ **Missing concurrent error test** - No test for errors during batch processing
-5. ❌ **Missing shouldReprocess test** - No test verifying onError return value handling
-6. ❌ **Missing mailbox full test** - No test for message loss when mailbox is full during restart
-
----
-
-## Recommendations
-
-### High Priority
-
-1. **Add comprehensive strategy tests**
-   ```java
-   @Test
-   void testResumeStrategy() {
-       // Verify actor continues processing after error
-   }
-   
-   @Test
-   void testStopStrategy() {
-       // Verify actor stops permanently after error
-   }
-   
-   @Test
-   void testMultipleRestarts() {
-       // Verify actor can restart multiple times
-   }
-   ```
-
-2. **Add shouldReprocess test**
-   ```java
-   @Test
-   void testShouldReprocessFlag() {
-       // Verify failed message reprocessed when onError returns true
-       // Verify failed message NOT reprocessed when onError returns false
-   }
-   ```
-
-3. **Add edge case tests**
-   ```java
-   @Test
-   void testRestartWithFullMailbox() {
-       // Fill mailbox to capacity
-       // Trigger restart with unprocessed messages
-       // Verify behavior (messages dropped or backpressure applied)
-   }
-   
-   @Test
-   void testConcurrentErrors() {
-       // Send multiple messages that fail
-       // Verify only one restart happens
-   }
-   ```
-
-### Medium Priority
-
-4. **Add performance tests**
-   - Measure restart latency
-   - Measure message throughput during restart
-   - Verify no memory leaks under load
-
-5. **Add documentation**
-   - User guide for choosing supervision strategies
-   - Examples of common patterns
-   - Migration guide from other actor systems
-
-### Low Priority
-
-6. **Consider enhancements**
-   - Configurable restart delays (exponential backoff)
-   - Restart counters with circuit breaker pattern
-   - Dead letter queue for failed messages
-
----
-
-## Code Quality Metrics
-
-| Metric | Status | Notes |
-|--------|--------|-------|
-| **Thread Safety** | ✅ PASS | Proper use of volatile, no race conditions |
-| **Memory Safety** | ✅ PASS | No leaks, bounded collections |
-| **Error Handling** | ✅ PASS | All exceptions caught and routed |
-| **Message Integrity** | ✅ PASS | Zero message loss guaranteed |
-| **Predictability** | ✅ PASS | Deterministic restart behavior |
-| **Test Coverage** | ⚠️ PARTIAL | Core scenarios covered, edge cases missing |
-| **Documentation** | ⚠️ PARTIAL | Code comments good, user docs needed |
-
----
-
-## Conclusion
-
-The supervision system is **production-ready** for core use cases. The critical bugs (infinite loop, message loss, concurrent modification) have been fixed and verified.
-
-**Recommended Actions:**
-1. ✅ **Deploy current version** - Safe for production
-2. 📝 **Add missing tests** - Before next release
-3. 📚 **Create user documentation** - For adoption
-
-**Risk Assessment:** **LOW** - All critical paths tested and verified.
-
----
-
-## Bug Fix: shouldReprocess for Handler-Based Actors
-
-**Issue Discovered:** The `shouldReprocess` flag was not working for Handler-based actors.
-
-**Root Cause:**  
-In `HandlerActor` and `StatefulHandlerActor`, the `handleException()` method was overridden incorrectly:
+Called before the actor starts processing messages (including after restarts):
 
 ```java
-// BEFORE (BROKEN):
 @Override
-protected void handleException(Message message, Throwable exception) {
-    boolean handled = handler.onError(message, exception, context);
-    if (!handled) {  // ❌ Only calls supervision if handler returns false!
-        super.handleException(message, exception);
+public void preStart(ActorContext context) {
+    context.getLogger().info("Actor {} starting", context.getSelf().id());
+    // Initialize resources, connections, etc.
+}
+```
+
+### postStop()
+
+Called when the actor stops (including before restarts):
+
+```java
+@Override
+public void postStop(ActorContext context) {
+    context.getLogger().info("Actor {} stopping", context.getSelf().id());
+    // Clean up resources, close connections, etc.
+}
+```
+
+### onError()
+
+Called when an error occurs during message processing:
+
+```java
+@Override
+public boolean onError(Message message, Throwable exception, ActorContext context) {
+    context.getLogger().error("Error processing {}: {}", message, exception.getMessage());
+    
+    // Return true to reprocess the message after restart (RESTART strategy only)
+    // Return false to skip reprocessing
+    return shouldRetry(exception);
+}
+```
+
+## Hierarchical Supervision
+
+Parent actors supervise their children. When a child escalates an error, the parent's supervision strategy determines the response:
+
+```java
+// Parent with RESTART strategy
+Pid parent = system.actorOf(SupervisorHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESTART)
+    .spawn();
+
+// Create child with ESCALATE
+public class SupervisorHandler implements Handler<SupervisorMessage> {
+    @Override
+    public void receive(SupervisorMessage message, ActorContext context) {
+        if (message instanceof SpawnChild) {
+            Pid child = context.createChild(WorkerHandler.class, "worker")
+                .withSupervisionStrategy(SupervisionStrategy.ESCALATE)
+                .spawn();
+        }
+    }
+}
+
+// When child fails:
+// 1. Child stops
+// 2. Error escalates to parent
+// 3. Parent's RESTART strategy restarts the child
+// 4. Child resumes processing
+```
+
+## Best Practices
+
+### Choose the Right Strategy
+
+- **RESUME**: Use for errors that don't affect actor state (e.g., validation errors, logging failures)
+- **RESTART**: Use for errors that corrupt actor state but are recoverable (e.g., connection failures, parsing errors)
+- **STOP**: Use for unrecoverable errors (e.g., configuration errors, critical resource failures)
+- **ESCALATE**: Use when the parent should decide how to handle the error
+
+### Implement Lifecycle Hooks
+
+```java
+public class RobustHandler implements Handler<Message> {
+    private Connection connection;
+
+    @Override
+    public void preStart(ActorContext context) {
+        // Initialize resources
+        connection = createConnection();
+        context.getLogger().info("Connection established");
+    }
+
+    @Override
+    public void postStop(ActorContext context) {
+        // Clean up resources
+        if (connection != null) {
+            connection.close();
+        }
+        context.getLogger().info("Connection closed");
+    }
+
+    @Override
+    public void receive(Message message, ActorContext context) {
+        // Use connection
+        connection.send(message);
+    }
+
+    @Override
+    public boolean onError(Message message, Throwable exception, ActorContext context) {
+        if (exception instanceof TransientException) {
+            return true;  // Retry after restart
+        }
+        return false;  // Don't retry
     }
 }
 ```
 
-This meant:
-- If `handler.onError()` returned `true` (shouldReprocess), supervision was **skipped entirely**
-- The actor would not restart, and the message would not be reprocessed
-- Only when `onError()` returned `false` would supervision run
-
-**Fix:**  
-Override `onError()` instead of `handleException()` to properly delegate to the handler:
+### Log Errors Appropriately
 
 ```java
-// AFTER (FIXED):
 @Override
-protected boolean onError(Message message, Throwable exception) {
-    // Delegate to handler to get shouldReprocess flag
-    return handler.onError(message, exception, context);
+public boolean onError(Message message, Throwable exception, ActorContext context) {
+    if (exception instanceof ExpectedException) {
+        context.getLogger().warn("Expected error: {}", exception.getMessage());
+    } else {
+        context.getLogger().error("Unexpected error processing {}", message, exception);
+    }
+    return false;
 }
 ```
 
-Now:
-- The handler's `onError()` return value is properly passed to the `Supervisor`
-- Supervision **always** runs (via `Actor.handleException()`)
-- The `shouldReprocess` flag correctly controls message reprocessing after restart
+### Avoid Infinite Restart Loops
 
-**Files Fixed:**
-- `/lib/src/main/java/com/cajunsystems/internal/HandlerActor.java`
-- `/lib/src/main/java/com/cajunsystems/internal/StatefulHandlerActor.java`
+If an actor repeatedly fails on the same message, consider:
 
-**Test Coverage:**
-- `SupervisionHandlerTest.testShouldReprocessTrue()` - Now passing ✅
-- `SupervisionHandlerTest.testShouldReprocessFalse()` - Passing ✅
+1. **Don't reprocess**: Return `false` from `onError()`
+2. **Use STOP strategy**: For persistent failures
+3. **Add retry limits**: Track retry count in actor state
 
----
+```java
+public class SafeHandler implements Handler<Message> {
+    private final Map<Message, Integer> retryCount = new HashMap<>();
+    private static final int MAX_RETRIES = 3;
 
-## Appendix: Supervision Decision Tree
-
-```
-Actor receives message
-    ↓
-Message processing throws exception
-    ↓
-Call actor.onError(message, exception) → returns shouldReprocess
-    ↓
-Check actor.getSupervisionStrategy()
-    ↓
-    ├─ RESUME → Continue processing next message
-    │           (Failed message lost unless shouldReprocess=true)
-    │
-    ├─ RESTART → Request restart
-    │            ↓
-    │            Exit batch loop (return unprocessed messages)
-    │            ↓
-    │            stopForRestart() (preserve mailbox)
-    │            ↓
-    │            start() (new thread)
-    │            ↓
-    │            Reprocess failed message if shouldReprocess=true
-    │
-    ├─ STOP → actor.stop()
-    │         (Actor terminated, messages lost)
-    │
-    └─ ESCALATE → actor.stop()
-                   ↓
-                   Call parent.handleChildError(child, exception)
-                   ↓
-                   Apply parent's supervision strategy to child
+    @Override
+    public boolean onError(Message message, Throwable exception, ActorContext context) {
+        int count = retryCount.getOrDefault(message, 0) + 1;
+        
+        if (count >= MAX_RETRIES) {
+            context.getLogger().error("Max retries exceeded for {}", message);
+            retryCount.remove(message);
+            return false;  // Give up
+        }
+        
+        retryCount.put(message, count);
+        return true;  // Retry
+    }
+}
 ```
 
----
+## Integration with Ask Pattern
 
-**Audit Completed By:** Cascade AI  
-**Review Status:** APPROVED  
-**Next Review:** After adding recommended tests
+Supervision strategies affect how errors are propagated in the ask pattern:
+
+```java
+Pid actor = system.actorOf(MyHandler.class)
+    .withSupervisionStrategy(SupervisionStrategy.RESTART)
+    .spawn();
+
+try {
+    Reply<String> reply = actor.ask(
+        replyTo -> new ProcessRequest("data", replyTo),
+        Duration.ofSeconds(5)
+    );
+    String result = reply.get();
+} catch (Exception e) {
+    // If actor fails during processing:
+    // - RESUME: No exception, continues
+    // - RESTART: Actor restarts, may timeout or succeed on retry
+    // - STOP: Future fails with exception
+    // - ESCALATE: Propagates to parent, may fail or recover
+}
+```
+
+## Summary
+
+- **Four strategies**: RESUME, RESTART, STOP, ESCALATE
+- **Configure per actor**: Use `.withSupervisionStrategy()`
+- **Lifecycle hooks**: `preStart()`, `postStop()`, `onError()`
+- **Message preservation**: Mailbox preserved during RESTART
+- **Hierarchical**: Parent supervises children with ESCALATE
+- **Best practices**: Choose appropriate strategy, implement hooks, avoid infinite loops

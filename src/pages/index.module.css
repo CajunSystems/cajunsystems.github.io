@@ -5,6 +5,24 @@
   overflow: hidden;
 }
 
+.heroLogo {
+  width: 200px;
+  height: auto;
+  margin-bottom: 2rem;
+  animation: fadeIn 0.8s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media screen and (max-width: 996px) {
   .heroBanner {
     padding: 2rem;

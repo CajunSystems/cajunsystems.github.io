@@ -1,160 +1,79 @@
 ---
 sidebar_position: 3
-title: Message Batching Optimization
+title: Message Batching
 ---
 
-# Actor Batching Optimization Guide
+# Message Batching
 
-## Overview
+Cajun processes messages in batches to improve throughput for high-volume scenarios. By default, actors process up to 10 messages per batch, reducing context switching and mailbox overhead.
 
-The Cajun actor framework includes a powerful **mailbox batching** feature that significantly improves throughput for high-volume message processing scenarios. This guide explains how it works and how to leverage it in your benchmarks and applications.
+## How It Works
 
-## How Actor Batching Works
+Actors drain multiple messages from their mailbox and process them sequentially before polling again:
 
-### Internal Mechanism
+- **Without batching (size=1)**: Process 1 message → poll → process 1 → poll
+- **With batching (size=50)**: Process 50 messages → poll → process 50 → poll
 
-Each actor's `MailboxProcessor` operates in a processing loop that:
-
-1. **Polls** for the first message from the mailbox (with 1ms timeout)
-2. **Drains** additional messages up to `batchSize - 1` from the mailbox
-3. **Processes** all messages in the batch sequentially
-4. **Repeats** the cycle
-
-```java
-// From MailboxProcessor.java
-while (running) {
-    batchBuffer.clear();
-    T first = mailbox.poll(POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-    if (first == null) continue;
-    
-    batchBuffer.add(first);
-    if (batchSize > 1) {
-        mailbox.drainTo(batchBuffer, batchSize - 1);  // Batch optimization!
-    }
-    
-    for (T msg : batchBuffer) {
-        lifecycle.receive(msg);  // Process each message
-    }
-}
-```
-
-### Benefits
-
-**Reduced Context Switching:**
-- Without batching (batchSize=1): Actor processes 1 message, then polls again
-- With batching (batchSize=50): Actor processes up to 50 messages before polling
-- Result: Up to 50x fewer poll operations and virtual thread park/unpark cycles
-
-**Improved Cache Locality:**
-- Sequential message processing keeps actor state in CPU cache
-- Better instruction cache utilization
-- Fewer memory barriers
-
-**Lower Overhead:**
-- Amortizes the cost of thread scheduling across multiple messages
-- Reduces mailbox synchronization overhead
+**Benefits:**
+- Reduced context switching (fewer poll operations)
+- Better CPU cache locality
+- Lower mailbox synchronization overhead
 
 ## Configuration
 
-### Default Settings
+Configure batch size using `withBatchSize()` on the actor builder:
 
 ```java
-// Default batch size
-private static final int DEFAULT_BATCH_SIZE = 10;  // in Actor.java
-```
+// Default batch size is 10
+Pid actor = system.actorOf(MyHandler.class).spawn();
 
-### Custom Batch Size
+// Custom batch size for high throughput
+Pid highThroughput = system.actorOf(MyHandler.class)
+    .withBatchSize(50)
+    .spawn();
 
-Configure batch size using `ThreadPoolFactory`:
-
-```java
-// Create a factory with custom batch size
-ThreadPoolFactory factory = new ThreadPoolFactory()
-    .setActorBatchSize(50);  // Process up to 50 messages per batch
-
-// Create actor with custom batching
-Pid actor = actorSystem.actorOf(MyHandler.class)
-    .withId("batch-optimized-actor")
-    .withThreadPoolFactory(factory)
+// For stateful actors
+Pid stateful = system.statefulActorOf(MyHandler.class, initialState)
+    .withBatchSize(100)
     .spawn();
 ```
 
-### Choosing the Right Batch Size
+## Choosing Batch Size
 
-| Batch Size | Use Case | Pros | Cons |
-|------------|----------|------|------|
-| **1** | Interactive, low-latency | Minimum latency per message | High overhead for throughput |
-| **10** (default) | General purpose | Good balance | May not maximize throughput |
-| **50-100** | High-throughput batch processing | Minimal overhead, max throughput | Higher latency for individual messages |
-| **500+** | Extreme bulk processing | Maximum throughput | Very high latency, memory pressure |
+| Batch Size | Use Case | Trade-off |
+|------------|----------|----------|
+| **1-10** | Interactive, low-latency | Lower throughput, minimal latency |
+| **10** (default) | General purpose | Balanced |
+| **50-100** | High-throughput processing | Higher latency, maximum throughput |
 
-**Rule of Thumb:**
-- **Latency-sensitive**: Use batch size 1-10
-- **Throughput-optimized**: Use batch size 50-100
-- **Bulk data processing**: Use batch size 100-500
+**Guidelines:**
+- **Latency-sensitive**: 1-10
+- **Throughput-optimized**: 50-100
+- **Bulk processing**: 100+
 
-## Benchmark Example
+## Performance Impact
 
-### Scenario: Processing 100 Messages
+**Typical improvements with batching:**
+- 2-3x throughput increase for CPU-light workloads
+- 25-50x reduction in mailbox overhead
+- Most effective when processing >1000 messages/sec
 
-```java
-@Benchmark
-@OperationsPerInvocation(WORKLOAD_SIZE)  // 100 operations
-public long batchProcessing_Actors_BatchOptimized() throws Exception {
-    CompletableFuture<Long>[] futures = new CompletableFuture[WORKLOAD_SIZE];
+## Use Cases
 
-    // Send all 100 messages
-    for (int i = 0; i < WORKLOAD_SIZE; i++) {
-        futures[i] = new CompletableFuture<>();
-        batchOptimizedWorkers[i].tell(new WorkMessage.BatchProcess(futures[i]));
-    }
-
-    // Collect results
-    long sum = 0;
-    for (CompletableFuture<Long> future : futures) {
-        sum += future.get(10, TimeUnit.SECONDS);
-    }
-    return sum;
-}
-```
-
-### Expected Performance Impact
-
-**Without Batching (batchSize=1):**
-- 100 messages = 100 poll operations
-- Each message triggers: poll → process → poll → process
-- Overhead: ~1-2µs per message for mailbox operations
-
-**With Batching (batchSize=50):**
-- 100 messages = ~2-3 poll operations (50+50 messages)
-- Processing pattern: poll → process 50 → poll → process 50
-- Overhead: ~0.02-0.04µs per message for mailbox operations
-
-**Theoretical Speedup:** 25-50x reduction in mailbox overhead
-
-**Realistic Speedup:** 2-3x improvement (when work dominates over overhead)
-
-## Real-World Applications
-
-### 1. Event Stream Processing
+### Event Stream Processing
 
 ```java
 // High-throughput event processor
-ThreadPoolFactory eventProcessorFactory = new ThreadPoolFactory()
-    .setActorBatchSize(100);
-
 Pid eventProcessor = system.actorOf(EventHandler.class)
-    .withId("event-stream-processor")
-    .withThreadPoolFactory(eventProcessorFactory)
+    .withBatchSize(100)
     .spawn();
 
-// Can process thousands of events efficiently
 for (Event event : eventStream) {
     eventProcessor.tell(new ProcessEvent(event));
 }
 ```
 
-### 2. Database Batch Writes
+### Database Batch Writes
 
 ```java
 public class DatabaseWriterHandler implements Handler<WriteCommand> {
@@ -163,9 +82,6 @@ public class DatabaseWriterHandler implements Handler<WriteCommand> {
     @Override
     public void receive(WriteCommand cmd, ActorContext context) {
         batch.add(cmd);
-        
-        // Actor batching naturally accumulates messages
-        // When we receive a batch, write them all at once
         if (batch.size() >= 10) {
             database.batchWrite(batch);
             batch.clear();
@@ -173,189 +89,91 @@ public class DatabaseWriterHandler implements Handler<WriteCommand> {
     }
 }
 
-// Configure with batch size matching database batch size
-ThreadPoolFactory dbFactory = new ThreadPoolFactory()
-    .setActorBatchSize(10);
-```
-
-### 3. Message Queue Consumer
-
-```java
-// Consume from Kafka/RabbitMQ in batches
-ThreadPoolFactory consumerFactory = new ThreadPoolFactory()
-    .setActorBatchSize(200);  // Match typical message queue batch size
-
-Pid consumer = system.actorOf(MessageConsumerHandler.class)
-    .withThreadPoolFactory(consumerFactory)
+Pid writer = system.actorOf(DatabaseWriterHandler.class)
+    .withBatchSize(10)
     .spawn();
 ```
 
-## Performance Characteristics
+### Message Queue Consumer
 
-### Latency vs Throughput Trade-off
-
-```
-Latency (per message):
-    batchSize=1:    Low  (~1-2ms)
-    batchSize=50:   Medium (~5-10ms)
-    batchSize=200:  High (~20-50ms)
-
-Throughput (messages/sec):
-    batchSize=1:    ~1,000-5,000
-    batchSize=50:   ~50,000-100,000
-    batchSize=200:  ~200,000-500,000
+```java
+// Match batch size to message queue batch size
+Pid consumer = system.actorOf(MessageConsumerHandler.class)
+    .withBatchSize(200)
+    .spawn();
 ```
 
-### When Batching Helps Most
+## When to Use Batching
 
-✅ **High message volume** (>1000 messages/sec per actor)
-✅ **CPU-light processing** (overhead dominates work time)
-✅ **Bursty traffic** (periods of high message arrival rate)
-✅ **Sequential processing acceptable** (no need for parallel execution)
+**Batching helps most when:**
+- High message volume (>1000 messages/sec)
+- CPU-light processing
+- Bursty traffic patterns
+- Sequential processing is acceptable
 
-### When Batching Helps Less
-
-⚠️ **Low message volume** (\<100 messages/sec per actor)
-⚠️ **CPU-heavy processing** (work dominates overhead)
-⚠️ **Strict latency requirements** (\<1ms response time)
-⚠️ **Interactive request-reply** (users waiting for response)
-
-## Comparison with Thread Pools
-
-### Actors with Batching
-```
-Pros:
-+ State encapsulation (thread-safe by design)
-+ Built-in backpressure and mailbox management
-+ Supervision and fault tolerance
-+ Natural batching at mailbox level
-
-Cons:
-- Still some message passing overhead
-- Sequential processing within an actor
-- Latency increases with batch size
-```
-
-### Thread Pools
-```
-Pros:
-+ Minimal overhead for task submission
-+ True parallel execution
-+ Lower latency per task
-
-Cons:
-- No built-in state management
-- Manual synchronization required
-- No backpressure mechanism
-- No fault tolerance
-```
+**Use smaller batches when:**
+- Low message volume (&lt;100 messages/sec)
+- CPU-heavy processing
+- Strict latency requirements (&lt;1ms)
+- Interactive request-reply scenarios
 
 ## Best Practices
 
-### 1. Profile First
+### Start with Defaults
+
 ```java
-// Start with default batch size
+// Start with default batch size (10)
 Pid actor = system.actorOf(Handler.class).spawn();
 
-// Measure throughput and latency
-// Adjust batch size based on results
+// Measure and adjust based on results
 ```
 
-### 2. Match Batch Size to Workload
+### Match to Workload
+
 ```java
-// For interactive requests (low latency)
-factory.setActorBatchSize(1);
+// Interactive (low latency)
+Pid interactive = system.actorOf(Handler.class)
+    .withBatchSize(1)
+    .spawn();
 
-// For background processing (high throughput)
-factory.setActorBatchSize(100);
-```
-
-### 3. Monitor Mailbox Depth
-```java
-// If mailbox consistently fills up, increase batch size
-int mailboxSize = actor.getCurrentSize();
-if (mailboxSize > 100) {
-    // Consider increasing batch size
-}
-```
-
-### 4. Combine with Mailbox Configuration
-```java
-ThreadPoolFactory factory = new ThreadPoolFactory()
-    .setActorBatchSize(50);
-
-ResizableMailboxConfig mailboxConfig = new ResizableMailboxConfig()
-    .setInitialCapacity(1000)
-    .setMaxCapacity(10000);
-
-Pid actor = system.actorOf(Handler.class)
-    .withThreadPoolFactory(factory)
-    .withMailboxConfig(mailboxConfig)
+// Background processing (high throughput)
+Pid background = system.actorOf(Handler.class)
+    .withBatchSize(100)
     .spawn();
 ```
 
-### 5. Consider Actor Pool for Parallelism
-```java
-// Instead of one actor with huge batch size,
-// use multiple actors with moderate batch size
-ThreadPoolFactory factory = new ThreadPoolFactory()
-    .setActorBatchSize(50);
+### Use Actor Pools for Parallelism
 
+```java
+// Multiple actors with moderate batch size
 int numActors = Runtime.getRuntime().availableProcessors();
-Pid[] actorPool = new Pid[numActors];
+Pid[] pool = new Pid[numActors];
 
 for (int i = 0; i < numActors; i++) {
-    actorPool[i] = system.actorOf(Handler.class)
-        .withThreadPoolFactory(factory)
+    pool[i] = system.actorOf(Handler.class)
+        .withBatchSize(50)
         .spawn();
 }
 
-// Round-robin message distribution
+// Round-robin distribution
 int next = 0;
 for (Message msg : messages) {
-    actorPool[next++ % numActors].tell(msg);
+    pool[next++ % numActors].tell(msg);
 }
 ```
 
-## Monitoring and Tuning
+## Tuning
 
-### Key Metrics
+**Process:**
+1. Start with default (10)
+2. Run load test and measure
+3. Low throughput + low CPU → increase batch size
+4. High latency → decrease batch size
+5. Mailbox fills up → increase batch size or add actors
 
-1. **Processing Rate** (messages/sec)
-   - Measure: `actor.getProcessingRate()`
-   - Target: Maximize for batch workloads
-
-2. **Mailbox Depth**
-   - Measure: `actor.getCurrentSize()`
-   - Target: Keep low to avoid memory pressure
-
-3. **Message Latency** (time from send to process)
-   - Measure: Timestamp in message
-   - Target: Meet SLA requirements
-
-4. **CPU Utilization**
-   - Measure: OS tools (top, htop)
-   - Target: High for CPU-bound work
-
-### Tuning Process
-
-```
-1. Start with default (batchSize=10)
-2. Run load test and measure metrics
-3. If throughput low and CPU low → increase batch size
-4. If latency high → decrease batch size
-5. If mailbox fills up → increase batch size or add actors
-6. Iterate until optimal
-```
-
-## Conclusion
-
-Actor batching is a powerful optimization for high-throughput scenarios. The key is to:
-
-1. **Understand your workload** (latency vs throughput requirements)
-2. **Configure appropriately** (match batch size to traffic patterns)
-3. **Monitor metrics** (track throughput, latency, mailbox depth)
-4. **Iterate and tune** (adjust based on real-world performance)
-
-When used correctly, batching can make actors competitive with or even superior to raw thread pools for certain workloads, while maintaining the benefits of actor model abstractions (state encapsulation, fault tolerance, backpressure).
+**Key metrics to monitor:**
+- Throughput (messages/sec)
+- Latency (time from send to process)
+- Mailbox depth
+- CPU utilization
 

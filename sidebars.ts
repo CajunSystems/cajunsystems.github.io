@@ -36,8 +36,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'advanced/reply-pattern',
         'advanced/sender-propagation',
-        'advanced/batching-optimization',
         'advanced/supervision',
+        'advanced/batching-optimization',
       ],
     },
     {
