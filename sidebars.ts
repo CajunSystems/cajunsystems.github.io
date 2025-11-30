@@ -28,8 +28,6 @@ const sidebars: SidebarsConfig = {
         'effect-monad/guide',
         'effect-monad/api',
         'effect-monad/throwable-effect',
-        'effect-monad/new-features',
-        'effect-monad/evolution',
       ],
     },
     {

@@ -1121,7 +1121,6 @@ Effect.ask(service1, req1, timeout)
 ## Next Steps
 
 - Read the [Full Effect API Reference](api) for all available operations
-- Check out [Functional Actor Evolution](evolution) for advanced patterns
 - See the examples in the Cajun repository for complete working code
 
 ## Quick Reference
@@ -1165,5 +1164,4 @@ Remember: Effects are just descriptions of what to do. They don't execute until 
 ## Learn More
 
 - **[Effect API Reference](api)** - Complete API documentation with all operators
-- **[Functional Actor Evolution](evolution)** - Advanced patterns and best practices
-- Check the Cajun repository for examples of using checked exceptions with Effect
+- Check the Cajun repository for examples and advanced patterns
