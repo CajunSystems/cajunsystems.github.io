@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import CodeBlock from '@theme/CodeBlock';
 
 import styles from './index.module.css';
 
@@ -104,27 +105,26 @@ function QuickExample() {
               Quick Example
             </Heading>
             <div className="margin-top--lg">
-              <pre>
-                <code className="language-java">
+              <CodeBlock language="java">
 {`// Simple stateless actor
 public class GreeterHandler implements Handler<String> {
     @Override
-    public void handle(String message, ActorContext context) {
+    public void receive(String message, ActorContext context) {
         System.out.println("Hello, " + message + "!");
     }
 }
 
 // Create actor system and spawn actor
-ActorSystem system = ActorSystem.create();
-Pid greeter = system.spawn(new GreeterHandler());
+ActorSystem system = new ActorSystem();
+Pid greeter = system.actorOf(GreeterHandler.class)
+    .spawn();
 
 // Send message
 greeter.tell("World");
 
 // Clean shutdown
 system.shutdown();`}
-                </code>
-              </pre>
+              </CodeBlock>
             </div>
           </div>
         </div>

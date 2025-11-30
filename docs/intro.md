@@ -114,14 +114,14 @@ Multi-node actor systems with:
 // Simple stateless actor
 public class GreeterHandler implements Handler<String> {
     @Override
-    public void handle(String message, ActorContext context) {
+    public void receive(String message, ActorContext context) {
         System.out.println("Hello, " + message + "!");
     }
 }
 
 // Create actor system and spawn actor
-ActorSystem system = ActorSystem.create();
-Pid greeter = system.spawn(new GreeterHandler());
+ActorSystem system = new ActorSystem();
+Pid greeter = system.actorOf(GreeterHandler.class).spawn();
 
 // Send message
 greeter.tell("World");
