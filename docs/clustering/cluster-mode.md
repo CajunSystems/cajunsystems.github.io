@@ -47,7 +47,9 @@ ClusterActorSystem system = new ClusterActorSystem("system1", metadataStore, mes
 system.start().get();
 
 // Create actors as usual
-Pid actor = system.register(MyActor.class, "my-actor");
+Pid actor = system.actorOf(MyHandler.class)
+    .withId("my-actor")
+    .spawn();
 
 // Send messages as usual
 actor.tell("Hello, actor!");

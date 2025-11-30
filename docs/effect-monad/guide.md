@@ -1120,10 +1120,9 @@ Effect.ask(service1, req1, timeout)
 
 ## Next Steps
 
-- Read the [Full Effect API Reference](effect_monad_api.md) for all available operations
-- Check out [Functional Actor Evolution](functional_actor_evolution.md) for advanced patterns
-- See [Examples](../lib/src/test/java/examples/) for complete working code
-  - **[KVEffectExample.java](../lib/src/test/java/examples/KVEffectExample.java)** - LSM Tree-based Key-Value store demonstrating complex actor coordination with Effects
+- Read the [Full Effect API Reference](api) for all available operations
+- Check out [Functional Actor Evolution](evolution) for advanced patterns
+- See the examples in the Cajun repository for complete working code
 
 ## Quick Reference
 
@@ -1165,6 +1164,6 @@ Remember: Effects are just descriptions of what to do. They don't execute until 
 
 ## Learn More
 
-- **[Effect API Reference](effect_monad_api.md)** - Complete API documentation with all operators
-- **[Functional Actor Evolution](functional_actor_evolution.md)** - Advanced patterns and best practices
-- **[Checked Exception Tests](../lib/src/test/java/com/cajunsystems/functional/EffectCheckedExceptionTest.java)** - Examples of using checked exceptions with Effect
+- **[Effect API Reference](api)** - Complete API documentation with all operators
+- **[Functional Actor Evolution](evolution)** - Advanced patterns and best practices
+- Check the Cajun repository for examples of using checked exceptions with Effect

@@ -71,33 +71,37 @@ counter.tell("second");  // Message #2: second
 
 ### Functional Actors with Effects
 
-For composable, functional programming style:
+For composable, functional programming style using the Effect monad:
 
 ```java
-public class CalculatorHandler implements EffectfulHandler<Integer, Command> {
-    @Override
-    public Integer initialState() {
-        return 0;
-    }
+import static com.cajunsystems.functional.ActorSystemEffectExtensions.*;
 
-    @Override
-    public Effect<Integer, Throwable, ?> handle(Integer state, Command cmd, ActorContext ctx) {
-        return Effect.match(cmd,
-            Effect.when(Add.class, add ->
-                Effect.modify(s -> s + add.value())
-                    .andThen(Effect.log("Added " + add.value()))
-            ),
-            Effect.when(Subtract.class, sub ->
-                Effect.modify(s -> s - sub.value())
-                    .andThen(Effect.log("Subtracted " + sub.value()))
-            ),
-            Effect.when(GetValue.class, get ->
-                Effect.state()
-                    .flatMap(s -> Effect.tell(get.replyTo(), s))
-            )
-        );
-    }
-}
+// Define messages
+sealed interface Command {}
+record Add(int value) implements Command {}
+record Subtract(int value) implements Command {}
+record GetValue(Pid replyTo) implements Command {}
+
+// Build behavior using effects
+Effect<Integer, Throwable, Void> calculatorBehavior = 
+    Effect.<Integer, Throwable, Void, Command>match()
+        .when(Add.class, (state, msg, ctx) -> 
+            Effect.modify(s -> s + msg.value())
+                .andThen(Effect.logState(s -> "Added, new value: " + s)))
+        
+        .when(Subtract.class, (state, msg, ctx) ->
+            Effect.modify(s -> s - msg.value())
+                .andThen(Effect.logState(s -> "Subtracted, new value: " + s)))
+        
+        .when(GetValue.class, (state, msg, ctx) ->
+            Effect.tell(msg.replyTo(), state))
+        
+        .build();
+
+// Create actor from effect
+Pid calculator = fromEffect(system, calculatorBehavior, 0)
+    .withId("calculator")
+    .spawn();
 ```
 
 ## Actor Communication

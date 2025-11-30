@@ -21,13 +21,13 @@ Pid response = grandparent.ask(parentPid, new Request());
 
 // Inside Parent's receive method:
 @Override
-protected void receive(Message msg) {
-    Optional<Pid> grandparent = getSender(); // ✓ Returns Optional with grandparent
+public void receive(Message msg, ActorContext context) {
+    // Sender is available via context
     
     // Send to child using tell - sender context is lost
     childPid.tell(new ChildMessage());
     
-    // Inside Child's receive method, getSender() returns Optional.empty()
+    // Inside Child's receive method, no sender context available
 }
 ```
 
@@ -41,15 +41,14 @@ Pid response = grandparent.ask(parentPid, new Request());
 
 // Inside Parent's receive method:
 @Override
-protected void receive(Message msg) {
-    Optional<Pid> grandparent = getSender(); // ✓ Returns Optional with grandparent
+public void receive(Message msg, ActorContext context) {
+    // Sender context available
     
     // Forward to child - preserves grandparent as sender
-    forward(childPid, new ChildMessage());
+    context.forward(childPid, new ChildMessage());
     
     // Inside Child's receive method:
-    // getSender() returns Optional with grandparent (not parent!)
-    // Child can reply directly to grandparent
+    // Sender context preserved - child can reply to grandparent
 }
 ```
 
@@ -60,27 +59,27 @@ protected void receive(Message msg) {
 When an actor acts as a router/proxy and wants the final handler to reply to the original requester:
 
 ```java
-public class RouterActor extends Actor<Message> {
+public class RouterHandler implements Handler<Message> {
     @Override
-    protected void receive(Message msg) {
+    public void receive(Message msg, ActorContext context) {
         if (msg instanceof RoutableRequest req) {
             Pid handler = selectHandler(req);
             
             // Forward preserves original sender for reply
-            forward(handler, req);
+            context.forward(handler, req);
         }
     }
 }
 
-public class HandlerActor extends Actor<Message> {
+public class HandlerActor implements Handler<Message> {
     @Override
-    protected void receive(Message msg) {
+    public void receive(Message msg, ActorContext context) {
         if (msg instanceof RoutableRequest req) {
             // Process request
             Response response = process(req);
             
-            // Reply goes directly to original requester, not router
-            getSender().ifPresent(requester -> requester.tell(response));
+            // Reply directly to original requester, not router
+            context.reply(response);
         }
     }
 }
@@ -93,28 +92,28 @@ public class HandlerActor extends Actor<Message> {
 Pid result = grandparent.ask(parentPid, new ProcessRequest());
 
 // Parent forwards to child
-public class ParentActor extends Actor<Message> {
+public class ParentHandler implements Handler<Message> {
     @Override
-    protected void receive(Message msg) {
+    public void receive(Message msg, ActorContext context) {
         if (msg instanceof ProcessRequest req) {
             // Do some preprocessing
             ProcessRequest enhanced = preprocess(req);
             
             // Forward to child - grandparent remains the sender
-            forward(childPid, enhanced);
+            context.forward(childPid, enhanced);
         }
     }
 }
 
 // Child processes and replies to grandparent
-public class ChildActor extends Actor<Message> {
+public class ChildHandler implements Handler<Message> {
     @Override
-    protected void receive(Message msg) {
+    public void receive(Message msg, ActorContext context) {
         if (msg instanceof ProcessRequest req) {
             ProcessResult result = process(req);
             
             // Reply goes to grandparent (original requester)
-            getSender().ifPresent(requester -> requester.tell(result));
+            context.reply(result);
         }
     }
 }

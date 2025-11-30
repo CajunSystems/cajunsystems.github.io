@@ -768,7 +768,4 @@ Cajun's ID system provides flexibility for every use case:
 
 Choose the approach that best fits your needs, and remember the priority system when combining multiple approaches.
 
-For more information, see:
-- [Main README](../README.md)
-- [Actor Hierarchies](actor_hierarchies.md)
-- [Testing Guide](../test-utils/README.md)
+For more information, see the Cajun GitHub repository for additional documentation and examples.

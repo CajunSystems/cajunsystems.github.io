@@ -497,9 +497,7 @@ The 8% overhead for CPU work is more than compensated by:
 
 ---
 
-**For more details, see:**
-- Main README.md - Getting started guide
-- [benchmarks/README.md](benchmarks) - How to run benchmarks
-- [batching-optimization](batching-optimization) - Batching details
-- [thread_pool_comparison_guide.md](thread_pool_comparison_guide.md) - Thread pool options
+**For more details:**
+- See the Cajun GitHub repository for benchmarking tools and additional performance documentation
+- Check [Batching Optimization](../advanced/batching-optimization) for batching details
 

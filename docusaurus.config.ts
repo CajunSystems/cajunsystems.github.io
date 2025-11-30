@@ -82,7 +82,7 @@ const config: Config = {
             },
             {
               label: 'Core Concepts',
-              to: '/docs/core-concepts',
+              to: '/docs/getting-started/core-concepts',
             },
           ],
         },

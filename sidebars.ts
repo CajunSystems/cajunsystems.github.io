@@ -47,7 +47,6 @@ const sidebars: SidebarsConfig = {
       label: 'Clustering',
       items: [
         'clustering/cluster-mode',
-        'clustering/improvements',
       ],
     },
     {
@@ -55,8 +54,6 @@ const sidebars: SidebarsConfig = {
       label: 'Performance',
       items: [
         'performance/benchmarks',
-        'performance/improvements',
-        'performance/recommendations',
       ],
     },
   ],
