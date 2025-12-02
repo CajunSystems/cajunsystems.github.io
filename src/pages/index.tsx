@@ -13,7 +13,7 @@ function HomepageHeader() {
     <header className={clsx('hero hero--primary', styles.heroBanner)}>
       <div className="container">
         <img 
-          src="/img/logo.png" 
+          src="/img/logo_transparent.png" 
           alt="Cajun Logo" 
           className={styles.heroLogo}
         />
@@ -143,7 +143,7 @@ export default function Home(): JSX.Element {
   return (
     <Layout
       title={`${siteConfig.title}`}
-      description="Cajun Actor System - Lightweight actor framework for Java with virtual threads">
+      description="Cajun - Lightweight actor framework for Java with virtual threads">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

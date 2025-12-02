@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Cajun Actor System',
+  title: 'Cajun',
   tagline: 'Concurrency And Java UNlocked - A lightweight actor framework for Java',
   favicon: 'img/favicon.ico',
 
@@ -56,11 +56,7 @@ const config: Config = {
   themeConfig: {
     image: 'img/docusaurus-social-card.jpg',
     navbar: {
-      title: 'Cajun Actor System',
-      logo: {
-        alt: 'Cajun Logo',
-        src: 'img/logo.png',
-      },
+      title: 'Cajun',
       items: [
         {
           type: 'docSidebar',
