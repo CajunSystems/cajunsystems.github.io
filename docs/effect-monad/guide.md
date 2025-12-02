@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: Effect Monad Guide
+title: Effect Monad
 ---
 
 # Building Actors with Effects

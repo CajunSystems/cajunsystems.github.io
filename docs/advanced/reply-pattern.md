@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: Reply Pattern Usage
+title: Reply Pattern
 ---
 
-# Reply Pattern Usage Guide
+# Reply Pattern
 
 The Reply pattern provides a streamlined, 3-tier API for the ask pattern in Cajun, making it easy to work with asynchronous responses from actors.
 

@@ -1,9 +1,9 @@
 ---
 sidebar_position: 2
-title: Mailbox Guide
+title: Mailboxes
 ---
 
-# Mailbox Guide
+# Mailboxes
 
 Cajun provides two mailbox implementations for actor message queues. Choose based on your workload and backpressure needs.
 

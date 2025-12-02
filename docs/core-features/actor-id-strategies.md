@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: Actor ID Strategies
+title: Actor IDs
 ---
 
-# Actor ID Strategies
+# Actor IDs
 
 Cajun provides a flexible and powerful system for managing actor identities. This guide covers all the ways you can control how actors are identified in your system.
 

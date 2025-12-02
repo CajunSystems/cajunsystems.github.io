@@ -1,9 +1,9 @@
 ---
 sidebar_position: 2
-title: Effect Monad API
+title: Effect API Reference
 ---
 
-# Effect Monad API Guide
+# Effect API Reference
 
 ## Overview
 

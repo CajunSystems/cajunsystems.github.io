@@ -1,9 +1,9 @@
 ---
 sidebar_position: 4
-title: Supervision & Error Handling
+title: Supervision
 ---
 
-# Supervision & Error Handling
+# Supervision
 
 Cajun provides a robust supervision system for handling actor failures gracefully, inspired by Erlang OTP. When an actor encounters an error during message processing, the supervision system determines how to respond based on the configured strategy.
 

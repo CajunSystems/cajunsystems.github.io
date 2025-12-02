@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: Cluster Mode
+title: Clustering
 ---
 
-# Cajun Cluster Mode
+# Clustering
 
 This package provides cluster mode capabilities for the Cajun actor system, allowing actors to be distributed across multiple nodes in a cluster.
 

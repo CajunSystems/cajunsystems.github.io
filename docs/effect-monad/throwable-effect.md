@@ -1,9 +1,9 @@
 ---
 sidebar_position: 3
-title: ThrowableEffect API
+title: ThrowableEffect Reference
 ---
 
-# ThrowableEffect API Guide
+# ThrowableEffect Reference
 
 ## Overview
 

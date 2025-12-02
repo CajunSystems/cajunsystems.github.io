@@ -1,9 +1,9 @@
 ---
 sidebar_position: 1
-title: Introduction
+title: Getting Started
 ---
 
-# Cajun Actor System
+# Getting Started
 
 **C**oncurrency **A**nd **J**ava **UN**locked
 

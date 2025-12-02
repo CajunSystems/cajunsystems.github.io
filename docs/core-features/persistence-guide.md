@@ -1,9 +1,9 @@
 ---
 sidebar_position: 4
-title: Persistence Guide
+title: Persistence
 ---
 
-# Persistence Guide
+# Persistence
 
 Cajun provides pluggable persistence backends for stateful actors. Choose between filesystem (simple, portable) or LMDB (high-performance) based on your needs.
 

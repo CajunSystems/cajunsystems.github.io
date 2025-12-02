@@ -1,9 +1,9 @@
 ---
 sidebar_position: 2
-title: Sender Context Propagation
+title: Sender Propagation
 ---
 
-# Sender Context Propagation in Actor Hierarchies
+# Sender Propagation
 
 ## Overview
 

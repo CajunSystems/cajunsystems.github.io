@@ -1,9 +1,9 @@
 ---
 sidebar_position: 3
-title: Message Batching
+title: Batching
 ---
 
-# Message Batching
+# Batching
 
 Cajun processes messages in batches to improve throughput for high-volume scenarios. By default, actors process up to 10 messages per batch, reducing context switching and mailbox overhead.
 
