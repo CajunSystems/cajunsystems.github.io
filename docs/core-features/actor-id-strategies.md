@@ -116,14 +116,14 @@ Generate IDs dynamically using placeholders. Best for:
 
 | Placeholder | Description | Example Output |
 |------------|-------------|----------------|
-| \{seq\} | Auto-incrementing sequence number | `1`, `2`, `3` |
+| `{seq}` | Auto-incrementing sequence number | `1`, `2`, `3` |
 | `{template-seq}` | Sequence per template pattern | `1`, `2`, `3` |
-| \{uuid\} | Full UUID | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| `{uuid}` | Full UUID | `a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
 | `{short-uuid}` | First 8 characters of UUID | `a1b2c3d4` |
-| \{timestamp\} | Current timestamp (milliseconds) | `1732956789123` |
+| `{timestamp}` | Current timestamp (milliseconds) | `1732956789123` |
 | `{nano}` | Current nanosecond time | `1732956789123456789` |
-| \{class\} | Simplified class name (lowercase) | `myhandler` |
-| \{parent\} | Parent actor ID (if hierarchical) | `parent-actor` |
+| `{class}` | Simplified class name (lowercase) | `myhandler` |
+| `{parent}` | Parent actor ID (if hierarchical) | `parent-actor` |
 
 ### Usage
 
@@ -155,12 +155,12 @@ Pid actor = system.actorOf(MyHandler.class)
 
 ### Sequence Counters
 
-- **{seq}**: Global counter per template prefix
+- **`{seq}`**: Global counter per template prefix
   - `"user-{seq}"` → `user-1`, `user-2`, `user-3`
   - `"order-{seq}"` → `order-1`, `order-2`, `order-3`
   - Different prefixes maintain separate counters
 
-- **{template-seq}**: Counter per exact template pattern
+- **`{template-seq}`**: Counter per exact template pattern
   - Same template = same counter
   - Different templates = different counters
 
@@ -588,7 +588,7 @@ Pid temp = system.actorOf(TempHandler.class)
     .spawn();
 ```
 
-**Key Point:** Sequential IDs ({seq}, `CLASS_BASED_SEQUENTIAL`) work seamlessly with persistence. Cajun automatically scans persisted actors on startup and resumes counters, preventing ID collisions. See [Persistence Integration](#persistence-integration) for details.
+**Key Point:** Sequential IDs (`{seq}`, `CLASS_BASED_SEQUENTIAL`) work seamlessly with persistence. Cajun automatically scans persisted actors on startup and resumes counters, preventing ID collisions. See [Persistence Integration](#persistence-integration) for details.
 
 ### 4. Hierarchies for Organization
 
