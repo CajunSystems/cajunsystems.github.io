@@ -70,24 +70,24 @@ Pid actor = system.actorOf(MyHandler.class)
 
 ### Persistence
 
-**Default: In-Memory (No Persistence)**
+**Default: Filesystem Persistence**
 
-Actors store state in memory by default. Persistence must be explicitly configured.
+Stateful actors automatically use filesystem persistence by default with default paths. You can customize the paths or switch to LMDB for production workloads.
 
 ```java
-// In-memory only (default)
+// Uses filesystem persistence with default paths automatically
 Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .spawn();
 
-// Add filesystem persistence when needed
+// Customize filesystem paths
 Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .withPersistence(
-        PersistenceFactory.createFileSnapshotStore(),
-        PersistenceFactory.createBatchedFileMessageJournal()
+        PersistenceFactory.createFileSnapshotStore("/custom/snapshots"),
+        PersistenceFactory.createBatchedFileMessageJournal("/custom/journal")
     )
     .spawn();
 
-// Or use LMDB for production
+// Use LMDB for production (10-100x faster)
 Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .withPersistence(
         PersistenceFactory.createLmdbSnapshotStore(),
@@ -96,10 +96,11 @@ Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .spawn();
 ```
 
-**Why in-memory by default?**
-- Zero configuration for stateless actors
-- Maximum performance for ephemeral state
-- Explicit opt-in for persistence needs
+**Why filesystem by default?**
+- Works out-of-the-box with zero configuration
+- State survives restarts automatically
+- Human-readable files for debugging
+- Portable across all platforms
 - See [Persistence Guide](/docs/core-features/persistence-guide) for details
 
 ### Backpressure
@@ -158,7 +159,7 @@ See [Actor ID Strategies](/docs/core-features/actor-id-strategies) for advanced 
 | **Thread Pool** | Virtual Threads | ✅ Yes | CPU-bound workloads may benefit from platform threads |
 | **Mailbox** | LinkedMailbox (10k capacity) | ✅ Yes | High-throughput CPU-bound workloads may benefit from MpscMailbox |
 | **Batch Size** | 10 messages | ✅ Yes | Tune for latency vs throughput tradeoff |
-| **Persistence** | In-Memory | ✅ Yes | Add when state must survive restarts |
+| **Persistence** | Filesystem | ✅ Yes | Use LMDB for high-performance production workloads |
 | **Backpressure** | Disabled | ✅ Yes | Enable for system-wide flow control |
 | **Actor IDs** | Auto-generated UUID | ✅ Yes | Use explicit IDs for debugging or routing |
 

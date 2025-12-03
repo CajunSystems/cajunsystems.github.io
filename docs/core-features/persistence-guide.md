@@ -8,19 +8,19 @@ title: Persistence
 Cajun provides pluggable persistence backends for stateful actors. Choose between filesystem (simple, portable) or LMDB (high-performance) based on your needs.
 
 :::info Default Behavior
-**By default, stateful actors store state in memory only.** Persistence must be explicitly configured using `withPersistence()` when spawning actors. This gives you maximum performance for ephemeral state and zero configuration overhead.
+**By default, stateful actors use filesystem persistence with default paths.** This provides zero-configuration persistence that works out of the box. You can customize paths or switch to LMDB for high-performance production workloads.
 :::
 
 ```java
-// Default: In-memory only (no persistence)
+// Default: Filesystem persistence with default paths
 Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .spawn();
 
-// Explicit: Add persistence when needed
+// Explicit: Customize filesystem paths
 Pid actor = system.statefulActorOf(MyHandler.class, initialState)
     .withPersistence(
-        PersistenceFactory.createFileSnapshotStore(),
-        PersistenceFactory.createBatchedFileMessageJournal()
+        PersistenceFactory.createFileSnapshotStore("/custom/snapshots"),
+        PersistenceFactory.createBatchedFileMessageJournal("/custom/journal")
     )
     .spawn();
 ```
