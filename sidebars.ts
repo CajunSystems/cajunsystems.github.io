@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'getting-started/installation',
         'getting-started/core-concepts',
+        'getting-started/configuration-defaults',
       ],
     },
     {
