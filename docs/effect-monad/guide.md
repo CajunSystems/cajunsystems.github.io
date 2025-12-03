@@ -484,6 +484,137 @@ Pid cart = fromEffect(system, cartBehavior, new CartState())
 
 Feel free to mutate within your handlers, but creating new collections (as shown above) is generally cleaner and safer.
 
+### Recommended Immutable Data Structure Libraries
+
+If you want to embrace immutability fully, consider using one of these excellent libraries:
+
+#### 1. Vavr (Recommended for Functional Programming)
+
+**Vavr** provides persistent immutable collections with structural sharing, making updates efficient:
+
+```java
+// Add to your pom.xml or build.gradle
+// io.vavr:vavr:0.10.4
+
+import io.vavr.collection.HashMap;
+import io.vavr.collection.Map;
+
+record CartState(Map<String, Double> items, double total) {
+    CartState() {
+        this(HashMap.empty(), 0.0);
+    }
+}
+
+Effect.modify(s -> {
+    // Vavr collections are immutable - put() returns a new map
+    var newItems = s.items().put(msg.item(), msg.price());
+    return new CartState(newItems, s.total() + msg.price());
+})
+```
+
+**Why Vavr?**
+- Persistent data structures with structural sharing (O(log n) updates)
+- Rich functional API (map, filter, fold, etc.)
+- Pattern matching support
+- Tuples, Option, Try, and other functional types
+
+#### 2. Google Guava (Simple and Widely Used)
+
+**Guava** provides straightforward immutable collections:
+
+```java
+// Add to your pom.xml or build.gradle
+// com.google.guava:guava:33.0.0-jre
+
+import com.google.common.collect.ImmutableMap;
+
+record CartState(ImmutableMap<String, Double> items, double total) {
+    CartState() {
+        this(ImmutableMap.of(), 0.0);
+    }
+}
+
+Effect.modify(s -> {
+    // Create new immutable map with added entry
+    var newItems = ImmutableMap.<String, Double>builder()
+        .putAll(s.items())
+        .put(msg.item(), msg.price())
+        .build();
+    return new CartState(newItems, s.total() + msg.price());
+})
+```
+
+**Why Guava?**
+- Simple, well-documented API
+- Widely adopted in industry
+- Good for teams already using Guava
+
+#### 3. PCollections (Pure Persistent Collections)
+
+**PCollections** offers persistent collections with minimal dependencies:
+
+```java
+// Add to your pom.xml or build.gradle
+// org.pcollections:pcollections:4.0.2
+
+import org.pcollections.HashTreePMap;
+import org.pcollections.PMap;
+
+record CartState(PMap<String, Double> items, double total) {
+    CartState() {
+        this(HashTreePMap.empty(), 0.0);
+    }
+}
+
+Effect.modify(s -> {
+    // plus() returns a new map with the added entry
+    var newItems = s.items().plus(msg.item(), msg.price());
+    return new CartState(newItems, s.total() + msg.price());
+})
+```
+
+**Why PCollections?**
+- Lightweight library focused solely on persistent collections
+- Good performance with structural sharing
+- Minimal dependencies
+
+#### 4. Java Built-in (Java 9+)
+
+For simple cases, use Java's built-in immutable factories:
+
+```java
+record CartState(Map<String, Double> items, double total) {
+    CartState() {
+        this(Map.of(), 0.0);
+    }
+}
+
+Effect.modify(s -> {
+    // Create new map by copying + adding
+    var newItems = new HashMap<>(s.items());
+    newItems.put(msg.item(), msg.price());
+    return new CartState(Map.copyOf(newItems), s.total() + msg.price());
+})
+```
+
+**Why Java Built-in?**
+- No external dependencies
+- Good for simple use cases
+- Part of the standard library
+
+**Note:** Java's `Map.of()` and `Map.copyOf()` create truly immutable maps but don't use structural sharing, so they copy the entire collection on each "update." For frequently updated state, consider Vavr or PCollections.
+
+### Which Should You Choose?
+
+| Library | Best For | Performance | Learning Curve |
+|---------|----------|-------------|----------------|
+| **Vavr** | Functional programming enthusiasts, complex state | Excellent (structural sharing) | Moderate |
+| **Guava** | Teams already using Guava, simple immutability | Good | Low |
+| **PCollections** | Lightweight persistent collections | Excellent (structural sharing) | Low |
+| **Java Built-in** | Simple state, no dependencies | Fair (full copies) | Very Low |
+
+For most actor-based applications with Cajun, we recommend **Vavr** for its excellent performance and functional API, or **PCollections** if you prefer a lightweight option.
+
 ## Building Intuition: The Mental Model
 
 Think of Effects like building blocks:
