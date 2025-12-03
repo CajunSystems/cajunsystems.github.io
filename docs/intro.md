@@ -6,9 +6,9 @@ title: Getting Started
 # Getting Started
 
 <div style={{textAlign:'center'}}>
-    <p><strong>C</strong>oncurrency <strong>A</strong>nd <strong>J</strong>ava <strong>UN</strong>locked</p>
+    <p><b>C</b>oncurrency <b>A</b>nd <b>J</b>ava <b>UN</b>locked</p>
     <p>Predictable concurrency for Java applications using the actor model</p>
-    <p><em>Leveraging virtual threads and modern features from JDK21+</em></p>
+    <p><i>Leveraging virtual threads and modern features from JDK21+</i></p>
 </div>
 
 ## What is Cajun?
