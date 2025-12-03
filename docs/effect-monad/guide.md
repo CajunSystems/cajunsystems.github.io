@@ -42,21 +42,28 @@ Effect.attempt(() -> {
 
 ## Your First Effect
 
-Let's start with the simplest possible example - a counter that increments:
+Let's build a simple counter to understand the basics. We'll start by defining the messages our counter can receive:
 
 ```java
-// Define your messages
+// Define your messages - what can the counter do?
 sealed interface CounterMsg {}
 record Increment(int amount) implements CounterMsg {}
 record GetCount(Pid replyTo) implements CounterMsg {}
+```
 
+Now let's create an effect that modifies the counter's state. An effect that increments the counter by 1 looks like this:
+
+```java
 // Create an effect that increments the counter
-// Note: Effect<State, Error, Result> - Message type is at match level
-Effect<Integer, Throwable, Void> incrementEffect = 
+// Effect<State, Error, Result>
+//   State: Integer (our counter value)
+//   Error: Throwable (what errors might occur)
+//   Result: Void (we don't return a value, just modify state)
+Effect<Integer, Throwable, Void> incrementEffect =
     Effect.modify(count -> count + 1);
 ```
 
-That's it! This effect says: "When you get an Increment message, add 1 to the count."
+That's it! This effect describes a simple operation: "Take the current count and add 1 to it." The beauty is that this is just a description - it won't execute until an actor runs it.
 
 ## Building Intuition: Effects are Transformations
 
@@ -110,10 +117,9 @@ counter.tell(new Increment(5));
 
 1. **Message Queued**: The message enters the actor's mailbox (a queue)
 2. **Actor Wakes Up**: The actor's virtual thread picks up the message
-3. **Effect Executes**: The effect's runT() method is called with current state, message, and context
-4. **Trampoline Runs**: The effect returns a Trampoline which is immediately evaluated
-5. **State Updated**: If successful, the actor's state is updated
-6. **Next Message**: The actor processes the next message in the mailbox
+3. **Effect Executes**: The effect runs through its operations in a stack-safe manner, allowing thousands of chained operations without stack overflow
+4. **State Updated**: If successful, the actor's state is updated
+5. **Next Message**: The actor processes the next message in the mailbox
 
 ### Key Insights
 
