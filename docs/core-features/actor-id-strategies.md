@@ -41,14 +41,14 @@ When you configure multiple ID settings, Cajun uses this priority order:
 // Priority 1: Explicit ID wins
 Pid actor = system.actorOf(Handler.class)
     .withId("my-actor")           // ← This is used
-    .withIdTemplate("user-`\{seq\}`") // ← Ignored
+    .withIdTemplate("user-{seq}") // ← Ignored
     .withIdStrategy(IdStrategy.UUID) // ← Ignored
     .spawn();
 // Result: "my-actor"
 
 // Priority 2: Template wins over strategy
 Pid actor = system.actorOf(Handler.class)
-    .withIdTemplate("user-`\{seq\}`") // ← This is used
+    .withIdTemplate("user-{seq}") // ← This is used
     .withIdStrategy(IdStrategy.UUID) // ← Ignored
     .spawn();
 // Result: "user-1", "user-2", etc.
@@ -130,52 +130,52 @@ Generate IDs dynamically using placeholders. Best for:
 ```java
 // Simple sequence
 Pid actor = system.actorOf(MyHandler.class)
-    .withIdTemplate("user-`\{seq\}`")
+    .withIdTemplate("user-{seq}")
     .spawn();
 // Result: "user-1", "user-2", "user-3", ...
 
 // Multiple placeholders
 Pid actor = system.actorOf(MyHandler.class)
-    .withIdTemplate("`\{class\}`-`\{seq\}`-{short-uuid}")
+    .withIdTemplate("{class}-{seq}-{short-uuid}")
     .spawn();
 // Result: "myhandler-1-a1b2c3d4"
 
 // Template with timestamp
 Pid actor = system.actorOf(MyHandler.class)
-    .withIdTemplate("session-`\{timestamp\}`-`\{seq\}`")
+    .withIdTemplate("session-{timestamp}-{seq}")
     .spawn();
 // Result: "session-1732956789123-1"
 
 // Complex template
 Pid actor = system.actorOf(MyHandler.class)
-    .withIdTemplate("`\{class\}`-`\{seq\}`-`\{uuid\}`-`\{timestamp\}`")
+    .withIdTemplate("{class}-{seq}-{uuid}-{timestamp}")
     .spawn();
 // Result: "myhandler-1-a1b2c3d4-e5f6-7890-abcd-ef1234567890-1732956789123"
 ```
 
 ### Sequence Counters
 
-- **\{seq\}**: Global counter per template prefix
-  - `"user-`\{seq\}`"` → `user-1`, `user-2`, `user-3`
-  - `"order-`\{seq\}`"` → `order-1`, `order-2`, `order-3`
+- **{seq}**: Global counter per template prefix
+  - `"user-{seq}"` → `user-1`, `user-2`, `user-3`
+  - `"order-{seq}"` → `order-1`, `order-2`, `order-3`
   - Different prefixes maintain separate counters
 
-- **`{template-seq}`**: Counter per exact template pattern
+- **{template-seq}**: Counter per exact template pattern
   - Same template = same counter
   - Different templates = different counters
 
 ```java
 // Separate counters for different templates
 Pid user1 = system.actorOf(Handler.class)
-    .withIdTemplate("user-`\{seq\}`")
+    .withIdTemplate("user-{seq}")
     .spawn(); // "user-1"
 
 Pid order1 = system.actorOf(Handler.class)
-    .withIdTemplate("order-`\{seq\}`")
+    .withIdTemplate("order-{seq}")
     .spawn(); // "order-1"
 
 Pid user2 = system.actorOf(Handler.class)
-    .withIdTemplate("user-`\{seq\}`")
+    .withIdTemplate("user-{seq}")
     .spawn(); // "user-2"
 ```
 
@@ -245,7 +245,7 @@ The counter recovery works with IDs that follow the `prefix:number` pattern (wit
 // Counter initialized to 3
 
 // ✅ Custom templates with colon separator
-.withIdTemplate("user:`\{seq\}`")  // Generates: "user:1", "user:2"
+.withIdTemplate("user:{seq}")  // Generates: "user:1", "user:2"
 // Counter initialized to max found
 
 // ✅ Hierarchical IDs with colon
@@ -253,13 +253,13 @@ The counter recovery works with IDs that follow the `prefix:number` pattern (wit
 // Counter initialized to 2 (uses base ID after last '/')
 
 // ❌ Templates with other separators NOT supported
-.withIdTemplate("user-`\{seq\}`")  // Generates: "user-1", "user-2"
+.withIdTemplate("user-{seq}")  // Generates: "user-1", "user-2"
 // Counter recovery WILL NOT WORK - use explicit IDs or colon separator
 ```
 
-**Important:** If you use templates with separators other than colons (e.g., `"user-`\{seq\}`"`, `"session_`\{seq\}`"`), the counter recovery will not work. For persistence with templates, use:
-- `"user:`\{seq\}`"` instead of `"user-`\{seq\}`"` ✅
-- `"session:`\{seq\}`"` instead of `"session-`\{seq\}`"` ✅
+**Important:** If you use templates with separators other than colons (e.g., `"user-{seq}"`, `"session_{seq}"`), the counter recovery will not work. For persistence with templates, use:
+- `"user:{seq}"` instead of `"user-{seq}"` ✅
+- `"session:{seq}"` instead of `"session-{seq}"` ✅
 - Or use `CLASS_BASED_SEQUENTIAL` strategy ✅
 
 **Benefits:**
@@ -365,7 +365,7 @@ Pid actor = system.actorOf(MyHandler.class)
 
 #### 2. CLASS_BASED_UUID
 
-Combines class name with UUID: ``\{class\}`:`\{uuid\}``
+Combines class name with UUID: `{class}:{uuid}`
 
 ```java
 Pid actor = system.actorOf(MyHandler.class)
@@ -385,7 +385,7 @@ Pid actor = system.actorOf(MyHandler.class)
 
 #### 3. CLASS_BASED_SEQUENTIAL
 
-Combines class name with auto-incrementing counter: ``\{class\}`:`\{seq\}``
+Combines class name with auto-incrementing counter: `{class}:{seq}`
 
 ```java
 Pid actor = system.actorOf(MyHandler.class)
@@ -464,13 +464,13 @@ Pid parent = system.actorOf(ParentHandler.class)
 
 // Children with sequential IDs
 Pid child1 = system.actorOf(ChildHandler.class)
-    .withIdTemplate("child-`\{seq\}`")
+    .withIdTemplate("child-{seq}")
     .withParent(system.getActor(parent))
     .spawn();
 // Result: "parent/child-1"
 
 Pid child2 = system.actorOf(ChildHandler.class)
-    .withIdTemplate("child-`\{seq\}`")
+    .withIdTemplate("child-{seq}")
     .withParent(system.getActor(parent))
     .spawn();
 // Result: "parent/child-2"
@@ -510,7 +510,7 @@ Pid child = system.actorOf(Handler.class)
 // Result: "grandparent/parent/child"
 ```
 
-### Using `\{parent\}` Placeholder
+### Using `{parent}` Placeholder
 
 ```java
 Pid parent = system.actorOf(ParentHandler.class)
@@ -518,7 +518,7 @@ Pid parent = system.actorOf(ParentHandler.class)
     .spawn();
 
 Pid child = system.actorOf(ChildHandler.class)
-    .withIdTemplate("`\{parent\}`/child-`\{seq\}`")
+    .withIdTemplate("{parent}/child-{seq}")
     .withParent(system.getActor(parent))
     .spawn();
 // Result: "parent/child-1"
@@ -536,7 +536,7 @@ Pid userService = system.actorOf(UserServiceHandler.class)
 
 // ✅ Good: Templates for dynamic actors
 Pid session = system.actorOf(SessionHandler.class)
-    .withIdTemplate("session-`\{seq\}`")
+    .withIdTemplate("session-{seq}")
     .spawn();
 
 // ✅ Good: Strategies for consistency
@@ -547,7 +547,7 @@ Pid worker = system.actorOf(WorkerHandler.class)
 // ❌ Bad: Mixing approaches unnecessarily
 Pid actor = system.actorOf(Handler.class)
     .withId("actor")
-    .withIdTemplate("template-`\{seq\}`")  // Ignored!
+    .withIdTemplate("template-{seq}")  // Ignored!
     .withIdStrategy(IdStrategy.UUID)   // Ignored!
     .spawn();
 ```
@@ -556,13 +556,13 @@ Pid actor = system.actorOf(Handler.class)
 
 ```java
 // ✅ Good: Descriptive IDs
-.withIdTemplate("user-session-`\{seq\}`")
-.withIdTemplate("order-processor-`\{timestamp\}`")
-.withIdTemplate("`\{class\}`-worker-`\{seq\}`")
+.withIdTemplate("user-session-{seq}")
+.withIdTemplate("order-processor-{timestamp}")
+.withIdTemplate("{class}-worker-{seq}")
 
 // ❌ Bad: Generic IDs
-.withIdTemplate("actor-`\{seq\}`")
-.withIdTemplate("thing-`\{uuid\}`")
+.withIdTemplate("actor-{seq}")
+.withIdTemplate("thing-{uuid}")
 ```
 
 ### 3. Consider Persistence
@@ -584,11 +584,11 @@ Pid user = system.statefulActorOf(UserHandler.class, initialState)
 
 // ⚠️ Caution: Sequential IDs reset for stateless actors
 Pid temp = system.actorOf(TempHandler.class)
-    .withIdTemplate("temp-`\{seq\}`")  // Counter resets on restart!
+    .withIdTemplate("temp-{seq}")  // Counter resets on restart!
     .spawn();
 ```
 
-**Key Point:** Sequential IDs (\{seq\}, `CLASS_BASED_SEQUENTIAL`) work seamlessly with persistence. Cajun automatically scans persisted actors on startup and resumes counters, preventing ID collisions. See [Persistence Integration](#persistence-integration) for details.
+**Key Point:** Sequential IDs ({seq}, `CLASS_BASED_SEQUENTIAL`) work seamlessly with persistence. Cajun automatically scans persisted actors on startup and resumes counters, preventing ID collisions. See [Persistence Integration](#persistence-integration) for details.
 
 ### 4. Hierarchies for Organization
 
@@ -615,12 +615,12 @@ Pid db = system.actorOf(DbHandler.class)
 
 ```java
 // ✅ Good: IDs that help debugging
-.withIdTemplate("`\{class\}`-`\{seq\}`-{short-uuid}")
+.withIdTemplate("{class}-{seq}-{short-uuid}")
 // Result: "userhandler-1-a1b2c3d4"
 // You can see: type, order, and unique identifier
 
 // ✅ Good: Include context in IDs
-.withIdTemplate("tenant-{tenant-id}-user-`\{seq\}`")
+.withIdTemplate("tenant-{tenant-id}-user-{seq}")
 // Result: "tenant-123-user-1"
 ```
 
@@ -631,10 +631,10 @@ Pid db = system.actorOf(DbHandler.class)
 ```java
 public class SessionManager {
     private final ActorSystem system;
-    
+
     public Pid createSession(String userId) {
         return system.actorOf(SessionHandler.class)
-            .withIdTemplate("session-" + userId + "-`\{timestamp\}`")
+            .withIdTemplate("session-" + userId + "-{timestamp}")
             .spawn();
         // Result: "session-user123-1732956789123"
     }
@@ -665,39 +665,39 @@ public class WorkerPool {
 ```java
 public class MicroserviceActors {
     private final ActorSystem system;
-    
+
     public void setupServices() {
         // API Gateway
         Pid gateway = system.actorOf(GatewayHandler.class)
             .withId("api-gateway")
             .spawn();
-        
+
         // User Service with children
         Pid userService = system.actorOf(UserServiceHandler.class)
             .withId("user-service")
             .spawn();
-        
+
         Pid userCache = system.actorOf(CacheHandler.class)
             .withId("cache")
             .withParent(system.getActor(userService))
             .spawn();
         // Result: "user-service/cache"
-        
+
         Pid userDb = system.actorOf(DbHandler.class)
             .withId("database")
             .withParent(system.getActor(userService))
             .spawn();
         // Result: "user-service/database"
-        
+
         // Order Service
         Pid orderService = system.actorOf(OrderServiceHandler.class)
             .withId("order-service")
             .spawn();
-        
+
         // Dynamic order processors
         for (int i = 0; i < 5; i++) {
             system.actorOf(OrderProcessorHandler.class)
-                .withIdTemplate("processor-`\{seq\}`")
+                .withIdTemplate("processor-{seq}")
                 .withParent(system.getActor(orderService))
                 .spawn();
         }
@@ -736,22 +736,22 @@ void testActorCommunication() {
 ```java
 public class TenantManager {
     private final ActorSystem system;
-    
+
     public Pid createTenantActor(String tenantId) {
         // Tenant supervisor
         Pid tenant = system.actorOf(TenantHandler.class)
             .withId("tenant-" + tenantId)
             .spawn();
-        
+
         // Tenant-specific workers
         for (String service : List.of("auth", "data", "cache")) {
             system.actorOf(ServiceHandler.class)
-                .withIdTemplate(service + "-`\{seq\}`")
+                .withIdTemplate(service + "-{seq}")
                 .withParent(system.getActor(tenant))
                 .spawn();
         }
         // Result: "tenant-123/auth-1", "tenant-123/data-1", "tenant-123/cache-1"
-        
+
         return tenant;
     }
 }
