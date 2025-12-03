@@ -5,9 +5,8 @@ title: Getting Started
 
 # Getting Started
 
-**C**oncurrency **A**nd **J**ava **UN**locked
-
 <div style={{textAlign:'center'}}>
+    <p><strong>C</strong>oncurrency <strong>A</strong>nd <strong>J</strong>ava <strong>UN</strong>locked</p>
     <p>Predictable concurrency for Java applications using the actor model</p>
     <p><em>Leveraging virtual threads and modern features from JDK21+</em></p>
 </div>
