@@ -430,20 +430,20 @@ record CartState(Map<String, Double> items, double total) {
 }
 
 // Build the behavior
-Effect<CartState, Throwable, Void> cartBehavior = 
+Effect<CartState, Throwable, Void> cartBehavior =
     Effect.<CartState, Throwable, Void, CartMsg>match()
     .when(AddItem.class, (state, msg, ctx) ->
         Effect.modify(s -> {
-            // IMPORTANT: Copy the map to avoid mutating shared state
+            // Create a new map with the added item
             var newItems = new HashMap<>(s.items());
             newItems.put(msg.item(), msg.price());
             return new CartState(newItems, s.total() + msg.price());
         })
         .andThen(Effect.logState(s -> "Cart total: $" + s.total())))
-    
+
     .when(RemoveItem.class, (state, msg, ctx) ->
         Effect.modify(s -> {
-            // IMPORTANT: Copy the map to avoid mutating shared state
+            // Create a new map with the item removed
             var newItems = new HashMap<>(s.items());
             Double price = newItems.remove(msg.item());
             if (price != null) {
@@ -475,6 +475,14 @@ Pid cart = fromEffect(system, cartBehavior, new CartState())
     .withId("shopping-cart")
     .spawn();
 ```
+
+**Note on Mutability:** Since actors process one message at a time, mutations within `Effect.modify` are safe—there's no concurrency risk. You could directly mutate the state's map and return it. However, **immutable data structures are still encouraged** as a best practice because they:
+- Make state transitions more predictable and easier to reason about
+- Prevent accidental bugs from shared references
+- Make testing and debugging simpler
+- Align with functional programming principles
+
+Feel free to mutate within your handlers, but creating new collections (as shown above) is generally cleaner and safer.
 
 ## Building Intuition: The Mental Model
 
