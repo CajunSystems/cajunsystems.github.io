@@ -7,6 +7,20 @@ title: Mailboxes
 
 Cajun provides two mailbox implementations for actor message queues. Choose based on your workload and backpressure needs.
 
+:::info Default Behavior
+**All actors use LinkedMailbox by default** with a capacity of 10,000 messages. This provides automatic backpressure control and works well for most use cases. You only need to explicitly configure mailboxes for high-throughput CPU-bound workloads or when you need custom capacity.
+:::
+
+```java
+// Default: LinkedMailbox with 10,000 capacity
+Pid actor = system.actorOf(MyHandler.class).spawn();
+
+// Custom: Adjust capacity or use MpscMailbox
+Pid actor = system.actorOf(MyHandler.class)
+    .withMailboxCapacity(5000)  // Custom LinkedMailbox capacity
+    .spawn();
+```
+
 ## Quick Comparison
 
 | Mailbox | Best For | Performance | Bounded |
