@@ -15,16 +15,31 @@ Cajun comes with sensible defaults optimized for 99% of use cases. **You don't n
 
 ### Thread Pools
 
-**Default: Virtual Threads**
+**Default: Virtual Threads (I/O-Optimized)**
 
 Cajun uses Java 21+ virtual threads by default, providing optimal performance for I/O-bound workloads.
 
 ```java
-// Uses virtual threads automatically
+// Uses virtual threads automatically (default)
 Pid actor = system.actorOf(MyHandler.class).spawn();
+
+// Explicitly optimize for workload type
+ThreadPoolFactory ioOptimized = new ThreadPoolFactory()
+    .optimizeFor(WorkloadType.IO_BOUND);  // Virtual threads (default)
+
+ThreadPoolFactory cpuOptimized = new ThreadPoolFactory()
+    .optimizeFor(WorkloadType.CPU_BOUND);  // Fixed platform thread pool
+
+ThreadPoolFactory mixedOptimized = new ThreadPoolFactory()
+    .optimizeFor(WorkloadType.MIXED);  // Work-stealing pool
+
+// Apply to specific actors
+Pid cpuActor = system.actorOf(ComputeHandler.class)
+    .withThreadPoolFactory(cpuOptimized)
+    .spawn();
 ```
 
-**Why virtual threads?**
+**Why virtual threads by default?**
 - Minimal overhead for I/O operations (0.02%)
 - Support thousands of concurrent actors
 - Natural blocking code without callbacks
@@ -156,7 +171,7 @@ See [Actor ID Strategies](/docs/core-features/actor-id-strategies) for advanced 
 
 | Component | Default | Configurable | When to Change |
 |-----------|---------|--------------|----------------|
-| **Thread Pool** | Virtual Threads | ✅ Yes | CPU-bound workloads may benefit from platform threads |
+| **Thread Pool** | Virtual Threads (IO_BOUND) | ✅ Yes | Use CPU_BOUND or MIXED workload types for different performance characteristics |
 | **Mailbox** | LinkedMailbox (10k capacity) | ✅ Yes | High-throughput CPU-bound workloads may benefit from MpscMailbox |
 | **Batch Size** | 10 messages | ✅ Yes | Tune for latency vs throughput tradeoff |
 | **Persistence** | Filesystem | ✅ Yes | Use LMDB for high-performance production workloads |
